@@ -116,16 +116,20 @@ def analyze(experiment=None, scorecard=None, contract=None, config=None, warehou
         spec = f"sqlite:{warehouse}" if ":" not in warehouse and os.path.exists(warehouse) else warehouse
         cut_wh = runner.warehouse_from(spec, wh_cfg.get("dialect", "spark"))  # the one warehouse seam
     if scorecard:
-        names = sorted({r[t1src.columns(wh_cfg)["experiment"]] for r in runner.scorecard_rows(scorecard)})
+        rows = runner.scorecard_rows(scorecard)
+        runner.check_scorecard_columns(rows, t1src.columns(wh_cfg))
+        names = sorted({r[t1src.columns(wh_cfg)["experiment"]] for r in rows})
         experiment = experiment or (names[0] if len(names) == 1 else None)
         if not experiment:
             raise ValueError(f"the scorecard holds {len(names)} experiments ({', '.join(names[:5])}); say which one")
         out = _new_run_dir(d["runs"], experiment, stamp)
-        wh, _ = runner.scorecard_warehouse(scorecard, out, wh_cfg["tables"]["t1"])
+        local = "scorecard_t1"  # the file's rows, under a local name (the overlay's T1 name can be catalog.schema.view)
+        wh, _ = runner.scorecard_warehouse(scorecard, out, local, t1src.columns(wh_cfg))
+        overrides = {"tables": {**wh_cfg["tables"], "t1": local}}
         if cut_wh:
-            wh = SplitWarehouse(wh, cut_wh, wh_cfg["tables"]["t1"])
+            wh = SplitWarehouse(wh, cut_wh, local)
         else:
-            overrides = {"approved": ["t1"]}
+            overrides["approved"] = ["t1"]
     elif cut_wh:
         if not experiment:
             raise ValueError("say which experiment to analyze")
@@ -198,7 +202,9 @@ def contract_template(scorecard, out, path=None):
     d = _dirs(home(path))
     init(home(path))
     cols = t1src.columns(_load(os.path.join(d["overlay"], "warehouse.json")))
-    _save(out, runner.contract_template(runner.scorecard_rows(scorecard), cols))
+    rows = runner.scorecard_rows(scorecard)
+    runner.check_scorecard_columns(rows, cols)
+    _save(out, runner.contract_template(rows, cols))
     return {"path": out, "text": f"Contract template written to {out}. Fill in the primary metrics, their bars and the "
                                  "guardrails. Then run analyze again with --contract."}
 

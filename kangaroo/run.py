@@ -211,11 +211,30 @@ def scorecard_rows(path):
     return rows
 
 
-def scorecard_warehouse(path, out_dir, table):
-    """A scorecard file (CSV, or JSON rows) in T1's shape -> a one-table SQLite warehouse."""
+T1_REQUIRED = ("experiment", "metric", "control_group", "test_group", "snapshot", "rel_delta", "rel_ci_lo", "rel_ci_hi")
+
+
+def check_scorecard_columns(rows, colmap):
+    cols = list(rows[0])
+    missing = [f"{colmap[f]} (t1_columns key '{f}')" for f in T1_REQUIRED if colmap[f] not in cols]
+    if missing:
+        raise ValueError(f"the scorecard file has no column {', '.join(missing)}. Its columns are: {', '.join(cols)}. "
+                         "Map them in t1_columns of the overlay's warehouse.json")
+
+
+def scorecard_warehouse(path, out_dir, table, colmap=None):
+    """A scorecard file (CSV, or JSON rows) in T1's shape -> a one-table SQLite warehouse.
+    With colmap (kangaroo name -> file column): a missing required column is an error that
+    names the t1_columns key to set; a missing optional column is added as empty."""
     import sqlite3
     rows = scorecard_rows(path)
     cols = list(rows[0])
+    if colmap:
+        check_scorecard_columns(rows, colmap)
+        fields = [f for f in colmap if not f.startswith("_")]
+        extra = [colmap[f] for f in fields if colmap[f] not in cols]
+        rows = [{**r, **{c: None for c in extra}} for r in rows]
+        cols += extra
     db_path = os.path.join(out_dir, "case", "scorecard.sqlite")
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
     if os.path.exists(db_path):
