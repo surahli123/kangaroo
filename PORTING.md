@@ -33,7 +33,7 @@ The code uses T1 to T4 and canonical column names. Translate them through the lo
 
 | Key | Value |
 |---|---|
-| `tables` | t1 (the vendor scorecard view), t3 (query-level metrics), t4 (tenant enablement), assignment (the current first-exposure source, not the source that was retired in May 2026) |
+| `tables` | t1 (the vendor scorecard view), t3 (query-level metrics), t4 (tenant enablement), assignment (the current first-exposure source, for the cuts only, not the source that was retired in May 2026) |
 | `t1_columns` | the real T1 column names. Under `_percent_fields`, the relative fields that T1 stores as percents |
 | `t3_columns` | the T3 names of the columns that the cut templates use (`t.<name>` in `m1/cut_templates.json`) |
 | `assignment` | the unit, arm, experiment and first-exposure columns |
@@ -57,7 +57,7 @@ Until a seam is connected, its stub raises `NotImplementedError`. Do not replace
 
 ## 5. Remove the blocking machinery
 
-The current agent marks M0 and M1 as not ready on each flight. The cause is its state machinery, not the data. Session 1 moves all current code to `legacy/`, with the five state families. After the move, no code imports `legacy/`, one `grade()` remains (`kangaroo/m0/grade.py`), and the split check uses `split_count_metric` or the current exposure source, never the retired first-exposure table. Delete the test that pins the receipt flags to false.
+The current agent marks M0 and M1 as not ready on each flight. The cause is its state machinery, not the data. Session 1 moves all current code to `legacy/`, with the five state families. After the move, no code imports `legacy/`, one `grade()` remains (`kangaroo/m0/grade.py`), and the split check uses only `split_count_metric` from T1, never the retired first-exposure table. Only the cuts read `assignment`. Delete the test that pins the receipt flags to false.
 
 ## 6. Rules at work
 
