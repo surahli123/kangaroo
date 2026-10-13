@@ -345,11 +345,13 @@ class Session(unittest.TestCase):
             writer.writeheader()
             writer.writerows(rows)
 
-    def analyze(self, name, rows):
-        """One scorecard variant in a workspace of its own (runs are named by the second, so two in one second collide)."""
+    def analyze(self, name, rows, inputs=True):
+        """One scorecard variant in a workspace of its own; inputs=False gives no contract and no config."""
         home = tempfile.mkdtemp(dir=STATE["tmp"])
         path = os.path.join(home, f"{name}.json")
         save(path, rows)
+        if not inputs:
+            return api.analyze(scorecard=path, path=home)
         return api.analyze(scorecard=path, contract=contract_path(name), config=config_path(name), path=home)
 
     def test_a_person_analyzes_asks_why_reviews_and_proposes(self):
@@ -418,6 +420,12 @@ class Session(unittest.TestCase):
         primary = lambda r: r["metric_name"] == "Search Success Rate"  # noqa: E731
         out = self.analyze("synth-3p-pin", rows)
         self.assertEqual(out["counts"]["grades"], {"pin": "decision_grade"})
+        with self.subTest(case="no contract and no config lower the grade; M1 still runs"):
+            bare = self.analyze("synth-3p-pin", rows, inputs=False)
+            trace = load(os.path.join(bare["run_dir"], "trace.json"))
+            self.assertEqual(bare["counts"]["grades"], {"pin": "directional_only"})
+            self.assertTrue(any(c["candidate_id"] for c in trace["claim_records"]))  # causes are still proposed
+            self.assertEqual(trace["claim_records"] and {c["pair"] for c in trace["claim_records"]}, {"pin"})
         with self.subTest(case="NULL units are unknown, not zero"):
             null = [{**r, "control_units": None, "test_units": None} if primary(r) else r for r in rows]
             self.assertEqual(self.analyze("synth-3p-pin", null)["counts"]["grades"], {"pin": "directional_only"})

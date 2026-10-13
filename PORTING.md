@@ -6,16 +6,15 @@ The laptop reads this repository and writes nothing back to it. Only counts come
 
 ## 1. Order of work
 
-Do one phase in each session. Make a plan first (plan mode) and get the person's approval before you edit. A phase is done only when its check passes. Then commit it locally.
+Do not rewrite kangaroo. Copy it. Write new code only for the seams in section 4. Do one session for each row, in plan mode, and get the person's approval before you edit. A session is done only when its check passes. Then commit it locally.
 
-| Phase | Goal | Check |
+| Session | Goal | Check |
 |---|---|---|
-| 0. Audit | Read only. Map the work repository to kangaroo. Write `PLAN.md` | The existing tests ran. `PLAN.md` gives file:line evidence for each item in section 5 |
-| 1. Unblock | One `grade()`. An M0 check that cannot run makes the grade lower and never stops M1 (section 5) | A grep for sealed, packet, checkpoint and accepted outside `legacy/` finds nothing. One real flight gets M1 output with a directional or decision grade |
-| 2. Core | Copy the analysis core (section 2). `analyze --scorecard export.csv` works | The kangaroo tests and the demo pass on the laptop |
-| 3. Report | Use the kangaroo renderer and its STE check | `ste.check` finds 0 problems in the report of a real flight |
-| 4. Seams | Connect the warehouse, the config and the overlay (sections 3 and 4) | Each cut runs or shows an access gap. No rows in the trace |
-| 5. Loop and tests | Confirm 3 to 5 cards. Make the tests follow section 7 | A report cites a confirmed card. The suite is end to end first |
+| 1. Replace | Inventory, approval, move the current code to `legacy/`, copy kangaroo, analyze one real flight | Tests and demo pass. The flight gets M1 output. No code imports `legacy/` |
+| 2. Seams | Connect the overlay, the warehouse and the config (sections 3 and 4) | Each cut runs or shows an access gap. No rows in the trace. `ste.check` finds 0 problems in the report |
+| 3. Loop and tests | Confirm 3 to 5 cards. Remove the old tests that test `legacy/` or pin internal state (section 7) | A report cites a confirmed card. The suite passes |
+
+In session 1, list what the work repository has that kangaroo does not, and get approval before the move. The prompts for the three sessions are in the work-prompts repository.
 
 ## 2. Prove the runtime
 
@@ -47,7 +46,7 @@ No alias or real name goes into code, only into the overlay, which stays on the 
 ## 4. Connect the four seams
 
 1. **Scorecard file (works now).** `analyze --scorecard export.csv` reads T1 rows that you export from the vendor console. M0, the launch call and the report need nothing more. The deep-dive cuts show as access gaps.
-2. **Warehouse.** Complete `McpWarehouse` in `kangaroo/sources/warehouse.py`. Send the Spark SQL from `bind` through the allow-listed read tool (by name, never the dashboard write tool). Poll the status tool for up to 15 minutes. Return `{statement_id, label, rows, row_count, sql_sha}`. On a failure, raise `TimeoutError` or `QueryRefused`: the run records an access gap and continues. Use the connection code of the current agent for the endpoint and its authentication. Before you mark a template as runnable, run `cuts.dry_run_sql` (Spark, `LIMIT 0`) on it.
+2. **Warehouse.** Complete `McpWarehouse` in `kangaroo/sources/warehouse.py`. Send the Spark SQL from `bind` through the allow-listed read tool (by name, never the dashboard write tool). Poll the status tool for up to 15 minutes. Return `{statement_id, label, rows, row_count, sql_sha}`. On a failure, raise `TimeoutError` or `QueryRefused`: the run records an access gap and continues. Use the connection code of the current agent for the endpoint and its authentication. Add the `mcp` kind to `warehouse_from` in `kangaroo/run.py`, the one place that builds a warehouse. Before you mark a template as runnable, run `cuts.dry_run_sql` (Spark, `LIMIT 0`) on it.
 3. **Config.** Complete `CliConfig` in `kangaroo/sources/config.py`. If the CLI runs only outside the sandbox, the person runs it and gives the JSON with `--config`.
 4. **Cards.** For 3 to 5 past flights, the owner gives the cause and the lesson: `cards confirm EXPERIMENT --cause ... --lesson ... --approver NAME`. Later reports cite only confirmed cards.
 
@@ -55,11 +54,7 @@ Until a seam is connected, its stub raises `NotImplementedError`. Do not replace
 
 ## 5. Remove the blocking machinery
 
-The current agent marks M0 and M1 as not ready on each flight. The cause is its state machinery, not the data.
-
-1. Move the five state families to `legacy/`. After the move, a grep for sealed, packet, checkpoint and accepted outside `legacy/` finds nothing, one `grade()` remains (`kangaroo/m0/grade.py`), and no code imports `legacy/`.
-2. Delete the test that pins the receipt flags to false. Replace it with a test that gets each grade from real checks, as `tests/test_agent.py` does.
-3. Point the split check at the current exposure source or at `split_count_metric`, never at the retired first-exposure table.
+The current agent marks M0 and M1 as not ready on each flight. The cause is its state machinery, not the data. Session 1 moves all current code to `legacy/`, with the five state families. After the move, no code imports `legacy/`, one `grade()` remains (`kangaroo/m0/grade.py`), and the split check uses `split_count_metric` or the current exposure source, never the retired first-exposure table. Delete the test that pins the receipt flags to false.
 
 ## 6. Rules at work
 

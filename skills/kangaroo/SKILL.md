@@ -14,6 +14,7 @@ Run the commands from the kangaroo repository: `python3 bin/kangaroo <command>`.
 | The person asks | Command |
 |---|---|
 | Analyze an experiment | `analyze --scorecard FILE [--contract FILE] [--config FILE]`, or `analyze --experiment NAME --warehouse W` |
+| There is no contract yet | `contract-template --scorecard FILE --out contract.json`, then the person fills it in |
 | Why did a metric change? | `why "METRIC"` |
 | Show the full report | `report --part all` |
 | "That claim is wrong", "You missed X" | `review wrong --metric "METRIC" --note "..." --reviewer NAME` |

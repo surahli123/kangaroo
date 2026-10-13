@@ -3,6 +3,7 @@
     python3 -m kangaroo init
     python3 -m kangaroo analyze --scorecard S.csv [--contract C.json] [--config CFG.json]
     python3 -m kangaroo analyze --experiment NAME --warehouse sqlite:PATH [--configs DIR]
+    python3 -m kangaroo contract-template --scorecard S.csv --out contract.json
     python3 -m kangaroo report [--run latest] [--part summary|details|all]
     python3 -m kangaroo why METRIC [--run latest]
     python3 -m kangaroo review correct|wrong|missing [--claim c2 | --metric NAME] [--note TEXT] [--reviewer NAME]
@@ -32,6 +33,9 @@ def main(argv=None):
     a = sub.add_parser("analyze")
     for flag in ("--experiment", "--scorecard", "--contract", "--config", "--warehouse", "--configs"):
         a.add_argument(flag)
+    ct = sub.add_parser("contract-template")
+    ct.add_argument("--scorecard", required=True)
+    ct.add_argument("--out", required=True)
     r = sub.add_parser("report")
     r.add_argument("--run", default="latest")
     r.add_argument("--part", default="summary", choices=["summary", "details", "all"])
@@ -82,6 +86,8 @@ def main(argv=None):
             out = api.init(h)
         elif args.cmd == "analyze":
             out = api.analyze(args.experiment, args.scorecard, args.contract, args.config, args.warehouse, args.configs, h)
+        elif args.cmd == "contract-template":
+            out = api.contract_template(args.scorecard, args.out, h)
         elif args.cmd == "report":
             out = api.report(args.run, args.part, h)
         elif args.cmd == "why":

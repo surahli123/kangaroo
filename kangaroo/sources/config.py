@@ -46,7 +46,7 @@ class JsonDirConfig:
 class OneConfig:
     """A single canonical config given by hand (or none)."""
 
-    command = "the config file, passed to analyze as config"
+    command = "`--config FILE`"
 
     def __init__(self, cfg):
         self.cfg = cfg

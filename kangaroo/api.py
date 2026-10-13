@@ -32,7 +32,6 @@ from kangaroo import LIBRARY  # noqa: E402
 from kangaroo import run as runner  # noqa: E402
 from kangaroo.sources import config as cfgsrc  # noqa: E402
 from kangaroo.sources import t1 as t1src  # noqa: E402
-from kangaroo.sources.warehouse import SqliteWarehouse  # noqa: E402
 
 EXAMPLE_OVERLAY = os.path.join(ROOT, "overlay.example")
 
@@ -119,19 +118,31 @@ def analyze(experiment=None, scorecard=None, contract=None, config=None, warehou
         wh, _ = runner.scorecard_warehouse(scorecard, out, wh_cfg["tables"]["t1"])
         overrides = {"approved": ["t1"]}
     elif warehouse:
-        wh = SqliteWarehouse(warehouse.partition(":")[2] if warehouse.startswith("sqlite:") else warehouse)
+        spec = f"sqlite:{warehouse}" if ":" not in warehouse and os.path.exists(warehouse) else warehouse
+        wh = runner.warehouse_from(spec)  # the one warehouse seam: sqlite:PATH at home, mcp at work
         if not experiment:
             raise ValueError("say which experiment to analyze")
         out = _new_run_dir(d["runs"], experiment, stamp)
     else:
         raise ValueError("give a scorecard file, or a warehouse (sqlite:PATH at home)")
-    cfg_source = cfgsrc.OneConfig(_load(config)) if config else cfgsrc.JsonDirConfig(configs)
+    cfg_source = (cfgsrc.OneConfig(_load(config)) if config else cfgsrc.JsonDirConfig(configs) if configs
+                  else cfgsrc.OneConfig(None))
     result = _quiet(runner.run, experiment, d["overlay"], wh, cfg_source, out, d["knowledge"], d["cards"],
                     _load(contract) if contract else None, overrides)
     _quiet(evaluate.freeze, out, d["cases"])
     c = result["counts"]
     return {"run_dir": out, "readout": os.path.join(out, "readout.md"), "html": os.path.join(out, "readout.html"),
             "counts": c, "text": minute(result["readout"]) + f"\n\nFull report: {os.path.join(out, 'readout.html')}"}
+
+
+def contract_template(scorecard, out, path=None):
+    """Write a contract skeleton that lists the scorecard's metrics, for the owner to fill in."""
+    d = _dirs(home(path))
+    init(home(path))
+    cols = t1src.columns(_load(os.path.join(d["overlay"], "warehouse.json")))
+    _save(out, runner.contract_template(runner.scorecard_rows(scorecard), cols))
+    return {"path": out, "text": f"Contract template written to {out}. Fill in the primary metrics, their bars and the "
+                                 "guardrails. Then run analyze again with --contract."}
 
 
 def report(run="latest", part="summary", path=None):
@@ -281,7 +292,7 @@ def evaluate_lesson(lesson_id, warehouse=None, path=None):
     lesson = _load(p)
     if not lesson:
         raise FileNotFoundError(f"no candidate lesson {lesson_id}")
-    live = SqliteWarehouse(warehouse.partition(":")[2]) if warehouse and warehouse.startswith("sqlite:") else None
+    live = runner.warehouse_from(warehouse) if warehouse else None
     rep = _quiet(evaluate.evaluate, lesson, d["cases"], d["overlay"], d["knowledge"], live)
     _save(p.replace(".json", ".report.json"), rep)
     lines = [f"{lesson_id}: {rep['status']}."]

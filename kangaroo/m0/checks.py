@@ -76,6 +76,9 @@ def split_check(comparison, cfg, contract, control, test, std, split_metric):
 
 
 def coverage_check(comparison, contract):
+    if contract.get("_missing"):
+        return result("M0-3", "UNKNOWN", "there is no contract, so the primary metrics and the guardrails are not known",
+                      None, missing=[], no_contract=True)
     specs = ((contract.get("primaries") or {}).get("metrics") or []) + (contract.get("guardrails") or [])
     missing, empty, unfilled = [], [], []
     for s in specs:

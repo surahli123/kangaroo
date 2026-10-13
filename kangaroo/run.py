@@ -85,8 +85,10 @@ def run(experiment, overlay, warehouse, configs, out_dir, knowledge_dir=None, ca
         for m in c["metrics"]:
             m["metric"] = aliases.get(m["metric"].lower(), m["metric"])
     contract = contract or load_json(os.path.join(overlay, "contracts", f"{name}.json"))
-    if not contract:
-        raise FileNotFoundError(f"no contract for {name} in {overlay}/contracts")
+    if not contract:  # no contract lowers the grade (M0 coverage is UNKNOWN); M1 still runs
+        trace.step("contract", status="missing", where=f"{overlay}/contracts/{name}.json")
+        contract = {"_missing": True, "confirmed": False, "primaries": {"rule": "any", "metrics": []}, "guardrails": None,
+                    "hypothesis": None, "intended_params": [], "feature_metrics": [], "explanations": []}
     split_metric = wh_cfg.get("split_count_metric")
     # The series covers the split metric and the primaries, plus any scorecard name that starts with
     # one (a renamed 'Search Success Rate v2'). It depends on the scorecard and the contract only, never
@@ -236,10 +238,12 @@ def contract_template(rows, cols):
 
 
 def warehouse_from(spec):
+    """The one place that turns --warehouse into a warehouse. At work, add the "mcp" kind here: it
+    builds McpWarehouse (sources/warehouse.py) on the allow-listed read tool."""
     kind, _, target = spec.partition(":")
     if kind == "sqlite":
         return SqliteWarehouse(target)
-    raise ValueError("only sqlite:PATH at home; at work, wire McpWarehouse in sources/warehouse.py")
+    raise ValueError(f"unknown warehouse '{kind}': only sqlite:PATH at home; at work, add mcp in run.warehouse_from")
 
 
 def main(argv=None):

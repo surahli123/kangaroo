@@ -48,6 +48,7 @@ An MCP server is also available for research, but it is not the supported route.
 
 ```
 python3 -m kangaroo analyze --scorecard S.csv [--contract C.json] [--config CFG.json]
+python3 -m kangaroo contract-template --scorecard S.csv --out contract.json
 python3 -m kangaroo why "1P Long Click Rate"
 python3 -m kangaroo review wrong --metric "1P Long Click Rate" --note "..." --reviewer NAME
 python3 -m kangaroo lessons propose | list | evaluate ID | approve ID --approver NAME

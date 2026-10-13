@@ -84,7 +84,9 @@ class Pair:
         self.evidence = {e["metric"].lower(): e for e in p.get("evidence", {}).get("metrics", [])}
         self.features = {f.lower() for f in p.get("feature_metrics", [])}
         self.patterns = {x["id"]: x for x in library["patterns"]} if library else {}
-        self.verdicts = [v for v in p["decision"]["verdicts"] if v["role"] in ("primary", "guardrail")]
+        self.verdicts = [v for v in p["decision"]["verdicts"] if v["role"] in ("primary", "guardrail")
+                         and "the contract names none" not in v["metric"]]
+        self.no_contract = any("the contract names none" in v["metric"] for v in p["decision"]["verdicts"])
         family_of = {name.lower(): f for f, name in p["explained"].get("families", {}).items()}
         families = (library or {}).get("families", {})
         self.band = lambda name: families.get(family_of.get(name.lower()), {}).get("practical") or 0.01  # noqa: E731
@@ -133,6 +135,8 @@ def call_line(pr):
     if pr.blocked:
         return "None until the data problem is fixed."
     missing = pr.missing_primaries()
+    if pr.no_contract:
+        return "Not made. The contract names no primary metric."
     if missing:
         return f"Not made. {', '.join(missing)} {'are' if len(missing) > 1 else 'is'} not in the scorecard."
     head = CALL.get(d["call"], d["call_text"]) + "."
@@ -166,7 +170,8 @@ def open_questions(pr):
                    f"({dur['details']['end']}).")
     for c in pr.p["m0"]:
         if c["affects_grade"] and c["status"] == "UNKNOWN":
-            out.append(_sentence(c["reason"] if c["reason"].lower().startswith(c["name"].lower()) else f"{c['name']}: {c['reason']}"))
+            named = c["name"].lower() in c["reason"].lower()[:len(c["name"]) + 6]  # "the sample split is ..." names itself
+            out.append(_sentence(c["reason"] if named else f"{c['name']}: {c['reason']}"))
     power = next((c for c in pr.p["m0"] if c["id"] == "M0-5"), None)
     for w in pr.warns():
         if w.lower().startswith("power") and power and power["details"].get("weak"):
@@ -221,6 +226,9 @@ def todo(pr):
             steps.append(f"Find where {arm} loses users: exposure logging, redirects or crashes. Fix it and run the test again.")
         elif c["status"] == "BLOCK":
             steps.append(_sentence(f"Fix this problem first: {c['reason']}"))
+        elif c["id"] == "M0-3" and c["details"].get("no_contract"):
+            steps.append("Write the contract: the primary metrics, their bars and the guardrails. To start, run "
+                         "`kangaroo contract-template --scorecard FILE --out contract.json`. Then run analyze again with `--contract`.")
         elif c["id"] == "M0-3":
             steps.append(f"Get {', '.join(c['details'].get('missing') or c['details'].get('unfilled') or [])} back in the "
                          "scorecard. Examine the metric pipeline jobs.")
@@ -292,7 +300,7 @@ def summary(pairs, approvals, cfg_present):
         lines += ["| Arm | Grade | Ready for triage | Launch call |", "|---|---|---|---|"]
         for pr in pairs:
             call = "None" if pr.blocked else (CALL.get(pr.p["decision"]["call"], pr.p["decision"]["call_text"])
-                                              if not pr.missing_primaries() else "Not made")
+                                              if not (pr.missing_primaries() or pr.no_contract) else "Not made")
             lines.append(f"| {pr.test} | {grade_text(pr)} | {triage_line(pr, qs[pr.test])} | {call} |")
         lines.append("")
     for pr in pairs:
