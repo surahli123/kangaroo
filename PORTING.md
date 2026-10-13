@@ -16,7 +16,7 @@ Do not rewrite kangaroo. Copy it. Write new code only for the seams in section 4
 
 In session 1, list what the work repository has that kangaroo does not, and get approval before the move. The prompts for the three sessions are in the work-prompts repository.
 
-To take a later kangaroo commit, make the diff from the copied commit and apply it with `git apply -3`. Change kangaroo code only with the person's approval for that change and a test. Write each change in `~/ds-handoff/upstream.md`, so that kangaroo takes it back and the next update has no conflicts.
+To take a later kangaroo commit, make the diff from the copied commit and apply it with `git apply -3`. Change kangaroo code only with the person's approval for that change and a test. Write each change in `~/ds-handoff/upstream.md` (section 8), so that kangaroo takes it back and the next update has no conflicts.
 
 ## 2. Prove the runtime
 
@@ -93,3 +93,14 @@ Counts only:
 - for one real flight: the grade of each arm, the number of cuts that ran and of access gaps, and the names of the checks that did not pass.
 
 Do not send metric values, rows or names from the alias map.
+
+Also send `~/ds-handoff/upstream.md`. It records each local change to kangaroo code, so that kangaroo takes it back. The agent makes the file if it does not exist. The file stays outside the repository. Write one entry for each change:
+
+- the local commit, the files and the functions;
+- what it does, and why the real data needed it;
+- the input shape, in kangaroo's names and types;
+- the rule or the formula;
+- its test, and what the test asserts;
+- "upstream" or "local only". For example, the `## At work` section of `AGENTS.md` is local only.
+
+Use no real names, IDs or values in it. A product name becomes a generic name.
