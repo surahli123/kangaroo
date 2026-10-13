@@ -46,7 +46,10 @@ No alias or real name goes into code, only into the overlay, which stays on the 
 ## 4. Connect the four seams
 
 1. **Scorecard file (works now).** `analyze --scorecard export.csv` reads T1 rows that you export from the vendor console. M0, the launch call and the report need nothing more. The deep-dive cuts show as access gaps.
-2. **Warehouse.** Complete `McpWarehouse` in `kangaroo/sources/warehouse.py`. Send the Spark SQL from `bind` through the allow-listed read tool (by name, never the dashboard write tool). Poll the status tool for up to 15 minutes. Return `{statement_id, label, rows, row_count, sql_sha}`. On a failure, raise `TimeoutError` or `QueryRefused`: the run records an access gap and continues. Use the connection code of the current agent for the endpoint and its authentication. Add the `mcp` kind to `warehouse_from` in `kangaroo/run.py`, the one place that builds a warehouse. Before you mark a template as runnable, run `cuts.dry_run_sql` (Spark, `LIMIT 0`) on it.
+2. **Warehouse (Databricks).** Do not write a Databricks client. Use the Databricks MCP or skill that the laptop already has, through one of two routes in `kangaroo/sources/warehouse.py`:
+   - `--warehouse cmd:COMMAND` if the skill has a script or CLI that runs one SQL statement. Write a small wrapper that reads the SQL on stdin and prints the JSON result. Results then go from machine to machine.
+   - `--warehouse handoff:DIR` if only the MCP tool can run SQL. Kangaroo writes each statement to `DIR/pending/`. Run each one with the MCP tool, and save the tool output without changes in `DIR/results/` with the same name. Then run `analyze` again. A changed number fails its checksum.
+   Both routes accept a list of rows or the Databricks statement result (`manifest` and `data_array`). Use only the read tool. Keep `"dialect": "spark"` in the overlay. Before you mark a template as runnable, run `cuts.dry_run_sql` (`LIMIT 0`) through the same route.
 3. **Config.** Complete `CliConfig` in `kangaroo/sources/config.py`. If the CLI runs only outside the sandbox, the person runs it and gives the JSON with `--config`.
 4. **Cards.** For 3 to 5 past flights, the owner gives the cause and the lesson: `cards confirm EXPERIMENT --cause ... --lesson ... --approver NAME`. Later reports cite only confirmed cards.
 

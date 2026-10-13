@@ -4,6 +4,8 @@
     python3 -m kangaroo analyze --scorecard S.csv [--contract C.json] [--config CFG.json]
     python3 -m kangaroo analyze --experiment NAME --warehouse sqlite:PATH [--configs DIR]
     python3 -m kangaroo contract-template --scorecard S.csv --out contract.json
+    python3 -m kangaroo check-report [--run latest]   (the writing rules on a report)
+    python3 -m kangaroo dry-run --out DIR      (each cut template's SQL with LIMIT 0, for a compile check)
     python3 -m kangaroo report [--run latest] [--part summary|details|all]
     python3 -m kangaroo why METRIC [--run latest]
     python3 -m kangaroo review correct|wrong|missing [--claim c2 | --metric NAME] [--note TEXT] [--reviewer NAME]
@@ -33,6 +35,10 @@ def main(argv=None):
     a = sub.add_parser("analyze")
     for flag in ("--experiment", "--scorecard", "--contract", "--config", "--warehouse", "--configs"):
         a.add_argument(flag)
+    cr = sub.add_parser("check-report")
+    cr.add_argument("--run", default="latest")
+    dr = sub.add_parser("dry-run")
+    dr.add_argument("--out", required=True)
     ct = sub.add_parser("contract-template")
     ct.add_argument("--scorecard", required=True)
     ct.add_argument("--out", required=True)
@@ -86,6 +92,10 @@ def main(argv=None):
             out = api.init(h)
         elif args.cmd == "analyze":
             out = api.analyze(args.experiment, args.scorecard, args.contract, args.config, args.warehouse, args.configs, h)
+        elif args.cmd == "check-report":
+            out = api.check_report(args.run, h)
+        elif args.cmd == "dry-run":
+            out = api.dry_run(args.out, h)
         elif args.cmd == "contract-template":
             out = api.contract_template(args.scorecard, args.out, h)
         elif args.cmd == "report":

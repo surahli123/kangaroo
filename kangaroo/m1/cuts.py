@@ -61,7 +61,8 @@ def build_sql(tpl, wh_cfg, dialect="sqlite"):
             f"FROM {tables['t3']} t JOIN a ON t.{unit} = a.unit{cohort_join} "
             f"WHERE t.{day} >= a.first_exposure AND t.{day} <= :as_of AND {col(tpl['filter'])}), "
             f"u AS (SELECT arm, unit{k_key}, SUM(x) AS x, {y_agg}(y) AS y FROM q GROUP BY arm, unit{k_key}) "
-            f"SELECT arm{k_key}, COUNT(*) AS n, SUM(x) AS sx, SUM(y) AS sy, SUM(x * x) AS sxx, SUM(y * y) AS syy, SUM(x * y) AS sxy "
+            f"SELECT arm{k_key}, COUNT(*) AS n, SUM(x) AS sx, SUM(y) AS sy, SUM(x * x) AS sxx, SUM(y * y) AS syy, SUM(x * y) AS sxy, "
+            f"COUNT(*) + SUM(x) + 2 * SUM(y) + 3 * SUM(x * x) + 5 * SUM(y * y) + 7 * SUM(x * y) AS chk "  # warehouse.verify
             f"FROM u GROUP BY arm{k_key}")
 
 

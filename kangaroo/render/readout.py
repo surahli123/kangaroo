@@ -241,7 +241,12 @@ def todo(pr):
     dur = next((c for c in p["m0"] if c["id"] == "duration"), None)
     if dur and dur["details"].get("end") and str(dur["details"].get("as_of")) < str(dur["details"]["end"]):
         steps.append(f"Wait for the planned end ({dur['details']['end']}), or use this report for discussion only.")
-    gaps = sorted({a["source_or_access_gap"] for a in p["actions"] if a["status"] == "access gap"})
+    waiting = [a for a in p["actions"] if a["status"] == "access gap" and str(a["source_or_access_gap"]).startswith("waiting")]
+    if waiting:
+        steps.append(f"Run the {len(waiting)} statements that wait for the warehouse, with the warehouse tool. "
+                     "Then run analyze again.")
+    gaps = sorted({a["source_or_access_gap"] for a in p["actions"] if a["status"] == "access gap"
+                   and not str(a["source_or_access_gap"]).startswith("waiting")})
     if gaps:
         n = sum(1 for a in p["actions"] if a["status"] == "access gap")
         tables = re.sub(r"^not approved for queries: ", "", gaps[0])

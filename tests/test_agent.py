@@ -102,6 +102,16 @@ def contract_path(name):
     return os.path.join(STATE["overlay"], "contracts", f"{name}.json")
 
 
+FAKE_DATABRICKS = """import json, sqlite3, sys
+def run(db, sql):
+    cur = sqlite3.connect(db).execute("\\n".join(l for l in sql.splitlines() if not l.startswith("--")))
+    return {"statement_id": "dbx-fake", "manifest": {"schema": {"columns": [{"name": c[0]} for c in cur.description]}},
+            "result": {"data_array": [[None if v is None else str(v) for v in r] for r in cur.fetchall()]}}
+if __name__ == "__main__":
+    print(json.dumps(run(sys.argv[1], sys.stdin.read())))
+"""  # stands in for the Databricks skill script: SQL on stdin, a statement-API result (string values) on stdout
+
+
 def keys_in(obj):
     if isinstance(obj, dict):
         for k, v in obj.items():
@@ -214,7 +224,8 @@ class Flights(unittest.TestCase):
 
     def test_the_warehouse_only_reads_and_a_cut_ties_to_t1(self):
         """The guard refuses every write; a template with T1's definition gives T1's number; the work dialect
-        (Spark, which the home can't run) gets a finished, quoted, read-only statement."""
+        (Spark, which the home can't run) gets a finished, quoted, read-only statement; both work routes to the
+        warehouse (a command, a hand-off) give the direct run's cuts, and a changed number is refused."""
         wh = SqliteWarehouse(STATE["db"])
         for bad in ("DELETE FROM t1_scorecard", "SELECT 1; DROP TABLE t1_scorecard", "INSERT INTO t1_scorecard VALUES (1)",
                     "PRAGMA table_info(t1_scorecard)"):
@@ -238,6 +249,45 @@ class Flights(unittest.TestCase):
         guard(bound)
         self.assertEqual(bind("a = :a AND b IN :b AND c = :c AND d = :d", {"a": 1.5, "b": ["x", 2], "c": None, "d": True}, "spark"),
                          ("a = 1.5 AND b IN ('x', 2) AND c = NULL AND d = TRUE", None))
+        # The two work routes give the direct run's cuts: a command (the Databricks skill's script) and a hand-off
+        # (the Databricks MCP, which only the chat agent can call). A copied result with a changed number is refused.
+        name, direct = "synth-auth-requery", self.runs["synth-auth-requery"][0]["counts"]
+        fake = os.path.join(STATE["tmp"], "fake_databricks.py")
+        with open(fake, "w", encoding="utf-8") as handle:
+            handle.write(FAKE_DATABRICKS)
+        sys.path.insert(0, STATE["tmp"])
+        import fake_databricks  # noqa: E402
+
+        def session(warehouse):
+            home = tempfile.mkdtemp(dir=STATE["tmp"])
+            api.init(home)
+            cfg = os.path.join(home, "overlay", "warehouse.json")
+            save(cfg, {**load(cfg), "dialect": "sqlite"})  # the fake runs SQLite; the laptop keeps "spark"
+            scorecard = os.path.join(home, "scorecard.json")
+            save(scorecard, t1_rows(name))
+            return lambda: api.analyze(scorecard=scorecard, contract=contract_path(name), config=config_path(name),
+                                       warehouse=warehouse, path=home)
+        by_command = session(f"cmd:{sys.executable} {fake} {STATE['db']}")()
+        self.assertEqual((by_command["counts"]["grades"], by_command["counts"]["cuts_ran"]), (direct["grades"], direct["cuts_ran"]))
+        folder = tempfile.mkdtemp(dir=STATE["tmp"])
+        handoff, rounds = session(f"handoff:{folder}"), 0
+        out = handoff()
+        while out["pending"] and rounds < 6:  # the agent runs each pending statement and saves the tool output unchanged
+            rounds += 1
+            for p in out["pending"]:
+                save(os.path.join(folder, "results", os.path.basename(p)[:-4] + ".json"),
+                     fake_databricks.run(STATE["db"], open(p, encoding="utf-8").read()))
+            out = handoff()
+        self.assertEqual((out["counts"]["cuts_ran"], out["pending"]), (direct["cuts_ran"], []))
+        self.assertGreater(rounds, 1)  # a control cut is asked for only after its cut agrees
+        result = sorted(os.listdir(os.path.join(folder, "results")))[0]
+        doc = load(os.path.join(folder, "results", result))
+        doc["result"]["data_array"][0][2] = str(float(doc["result"]["data_array"][0][2]) + 1)
+        save(os.path.join(folder, "results", result), doc)
+        tampered = handoff()
+        gaps = [a["source_or_access_gap"] for a in load(os.path.join(tampered["run_dir"], "trace.json"))["action_records"]
+                if a["status"] == "access gap"]
+        self.assertTrue(any("checksum" in g for g in gaps), gaps)
 
 
 class Learning(unittest.TestCase):

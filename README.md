@@ -53,7 +53,11 @@ python3 -m kangaroo why "1P Long Click Rate"
 python3 -m kangaroo review wrong --metric "1P Long Click Rate" --note "..." --reviewer NAME
 python3 -m kangaroo lessons propose | list | evaluate ID | approve ID --approver NAME
 python3 -m kangaroo report --part summary | details | all
+python3 -m kangaroo dry-run --out DIR       # each cut template's SQL with LIMIT 0
+python3 -m kangaroo check-report            # the writing rules on the latest report
 ```
+
+`--warehouse` takes `sqlite:PATH` at home. At work it takes `cmd:COMMAND` (a Databricks skill script) or `handoff:DIR` (the Databricks MCP, through the chat agent). See `PORTING.md` section 4.
 
 Runs, frozen cases, lessons and cards are in one workspace: `KANGAROO_HOME` (the default is `~/.kangaroo`).
 

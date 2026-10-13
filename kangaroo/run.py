@@ -35,7 +35,8 @@ from kangaroo.render.html import to_html  # noqa: E402
 from kangaroo.sources import config as cfgsrc  # noqa: E402
 from kangaroo.sources import resolver  # noqa: E402
 from kangaroo.sources import t1 as t1src  # noqa: E402
-from kangaroo.sources.warehouse import RecordingWarehouse, SqliteWarehouse  # noqa: E402
+from kangaroo.sources.warehouse import (CommandWarehouse, HandoffWarehouse, RecordingWarehouse,  # noqa: E402
+                                            SqliteWarehouse)
 from kangaroo.trace import Trace  # noqa: E402
 
 
@@ -237,13 +238,18 @@ def contract_template(rows, cols):
             "guardrails": [], "intended_params": [], "feature_metrics": [], "_metrics_in_the_scorecard": metrics}
 
 
-def warehouse_from(spec):
-    """The one place that turns --warehouse into a warehouse. At work, add the "mcp" kind here: it
-    builds McpWarehouse (sources/warehouse.py) on the allow-listed read tool."""
+def warehouse_from(spec, dialect="spark"):
+    """The one place that turns --warehouse into a warehouse: sqlite:PATH at home; at work,
+    cmd:COMMAND (the script of the team's Databricks skill) or handoff:DIR (the Databricks MCP,
+    which only the chat agent can call). See sources/warehouse.py."""
     kind, _, target = spec.partition(":")
     if kind == "sqlite":
         return SqliteWarehouse(target)
-    raise ValueError(f"unknown warehouse '{kind}': only sqlite:PATH at home; at work, add mcp in run.warehouse_from")
+    if kind == "cmd":
+        return CommandWarehouse(target, dialect)
+    if kind == "handoff":
+        return HandoffWarehouse(target, dialect)
+    raise ValueError(f"unknown warehouse '{kind}': use sqlite:PATH, cmd:COMMAND or handoff:DIR")
 
 
 def main(argv=None):

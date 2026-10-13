@@ -32,6 +32,7 @@ from kangaroo import LIBRARY  # noqa: E402
 from kangaroo import run as runner  # noqa: E402
 from kangaroo.sources import config as cfgsrc  # noqa: E402
 from kangaroo.sources import t1 as t1src  # noqa: E402
+from kangaroo.sources.warehouse import HandoffWarehouse, Pending, SplitWarehouse, bind  # noqa: E402
 
 EXAMPLE_OVERLAY = os.path.join(ROOT, "overlay.example")
 
@@ -102,37 +103,94 @@ def _new_run_dir(runs, experiment, stamp):
 
 
 def analyze(experiment=None, scorecard=None, contract=None, config=None, warehouse=None, configs=None, path=None):
-    """Run the agent on one experiment: from a scorecard file, or from a warehouse."""
+    """Run the agent on one experiment. The scorecard comes from a file (an export of T1) or
+    from the warehouse; the deep-dive cuts need a warehouse. Both together: T1 from the file,
+    the cuts from the warehouse."""
     h = home(path)
     init(h)
     d = _dirs(h)
     stamp = time.strftime("%Y%m%dT%H%M%S", time.gmtime())
-    overrides = None
+    wh_cfg = _load(os.path.join(d["overlay"], "warehouse.json"))
+    overrides, cut_wh = None, None
+    if warehouse:
+        spec = f"sqlite:{warehouse}" if ":" not in warehouse and os.path.exists(warehouse) else warehouse
+        cut_wh = runner.warehouse_from(spec, wh_cfg.get("dialect", "spark"))  # the one warehouse seam
     if scorecard:
-        wh_cfg = _load(os.path.join(d["overlay"], "warehouse.json"))
         names = sorted({r[t1src.columns(wh_cfg)["experiment"]] for r in runner.scorecard_rows(scorecard)})
         experiment = experiment or (names[0] if len(names) == 1 else None)
         if not experiment:
             raise ValueError(f"the scorecard holds {len(names)} experiments ({', '.join(names[:5])}); say which one")
         out = _new_run_dir(d["runs"], experiment, stamp)
         wh, _ = runner.scorecard_warehouse(scorecard, out, wh_cfg["tables"]["t1"])
-        overrides = {"approved": ["t1"]}
-    elif warehouse:
-        spec = f"sqlite:{warehouse}" if ":" not in warehouse and os.path.exists(warehouse) else warehouse
-        wh = runner.warehouse_from(spec)  # the one warehouse seam: sqlite:PATH at home, mcp at work
+        if cut_wh:
+            wh = SplitWarehouse(wh, cut_wh, wh_cfg["tables"]["t1"])
+        else:
+            overrides = {"approved": ["t1"]}
+    elif cut_wh:
         if not experiment:
             raise ValueError("say which experiment to analyze")
-        out = _new_run_dir(d["runs"], experiment, stamp)
+        out, wh = _new_run_dir(d["runs"], experiment, stamp), cut_wh
     else:
         raise ValueError("give a scorecard file, or a warehouse (sqlite:PATH at home)")
     cfg_source = (cfgsrc.OneConfig(_load(config)) if config else cfgsrc.JsonDirConfig(configs) if configs
                   else cfgsrc.OneConfig(None))
-    result = _quiet(runner.run, experiment, d["overlay"], wh, cfg_source, out, d["knowledge"], d["cards"],
-                    _load(contract) if contract else None, overrides)
+    waiting = ""
+    try:
+        result = _quiet(runner.run, experiment, d["overlay"], wh, cfg_source, out, d["knowledge"], d["cards"],
+                        _load(contract) if contract else None, overrides)
+    except Pending:  # the scorecard itself waits for the warehouse
+        return {"run_dir": out, "counts": None, "pending": cut_wh.pending(), "text": _handoff_text(cut_wh)}
+    if isinstance(cut_wh, HandoffWarehouse) and cut_wh.pending():
+        waiting = "\n\n" + _handoff_text(cut_wh)
     _quiet(evaluate.freeze, out, d["cases"])
     c = result["counts"]
     return {"run_dir": out, "readout": os.path.join(out, "readout.md"), "html": os.path.join(out, "readout.html"),
-            "counts": c, "text": minute(result["readout"]) + f"\n\nFull report: {os.path.join(out, 'readout.html')}"}
+            "counts": c, "pending": cut_wh.pending() if isinstance(cut_wh, HandoffWarehouse) else [],
+            "text": minute(result["readout"]) + f"\n\nFull report: {os.path.join(out, 'readout.html')}" + waiting}
+
+
+def _handoff_text(wh):
+    n = len(wh.pending())
+    return (f"{n} statement{'s' if n != 1 else ''} wait for the warehouse in {wh.folder}/pending. Run each one with the "
+            f"warehouse tool. Save the tool output, without changes, as {wh.folder}/results/<same name>.json. "
+            "Then run analyze again.")
+
+
+def dry_run(out, path=None):
+    """Write each cut template's SQL with LIMIT 0, built from the overlay, for a compile check on the
+    work warehouse. Run each file with the warehouse tool; a template that fails stays unused."""
+    from kangaroo.m1 import cuts as cutlib
+    h = home(path)
+    d = _dirs(h)
+    init(h)
+    wh_cfg = _load(os.path.join(d["overlay"], "warehouse.json"))
+    os.makedirs(out, exist_ok=True)
+    written = []
+    for tid, tpl in sorted(cutlib.load_templates(d["knowledge"]).items()):
+        target = os.path.join(out, f"{tid}.sql")
+        with open(target, "w", encoding="utf-8") as handle:
+            sql = cutlib.dry_run_sql(tpl, wh_cfg, wh_cfg.get("dialect", "spark"))
+            finished = bind(sql, {"experiment": "__dry_run__", "as_of": "1970-01-01"}, "spark")[0]  # LIMIT 0: no rows
+            handle.write(finished + "\n")
+        written.append(target)
+    return {"files": written, "text": f"{len(written)} dry-run statements in {out}. Run each one with the warehouse tool. "
+                                      "Each must compile and return no rows."}
+
+
+def check_report(run="latest", path=None):
+    """The writing-rule check (render/ste.py) on a run's report. Team names are not checked."""
+    from kangaroo.render import ste
+    rd = _run_dir(home(path), run)
+    with open(os.path.join(rd, "readout.md"), encoding="utf-8") as handle:
+        text = handle.read()
+    trace = _load(os.path.join(rd, "trace.json"))
+    scorecard = _load(os.path.join(rd, "case", "scorecard.json"), {})
+    names = {m["metric"] for c in scorecard.get("comparisons", []) for m in c["metrics"]}
+    names |= {c.get("test_group") for c in scorecard.get("comparisons", [])} | {scorecard.get("control_group") or ""}
+    names |= {a.get("produces") or "" for a in trace["action_records"]} | {a["exact_next_task"] for a in trace["action_records"]}
+    problems = ste.check(text, {n for n in names if n})
+    lines = [f"{len(problems)} problems with the writing rules in {rd}/readout.md."] + [f"- {r}: {t}" for r, t in problems[:20]]
+    return {"problems": problems, "text": "\n".join(lines)}
 
 
 def contract_template(scorecard, out, path=None):

@@ -28,6 +28,7 @@ Run the commands from the kangaroo repository: `python3 bin/kangaroo <command>`.
 
 1. Get the input: a scorecard file, or an experiment name, ID or console link with the warehouse. Do not wait for a contract or a config. `analyze` runs without them and tells what they would add.
 2. Run `analyze`. Give the person its output exactly as it is, with the path of the full report. Do not summarize it, change its order or add numbers.
+   - If the output says that statements wait for the warehouse (`--warehouse handoff:DIR`), run each file in `DIR/pending/` with the Databricks read tool. Save the tool output, without changes, as `DIR/results/<same name>.json`. Do not type, round or change a number: each row has a checksum. Then run `analyze` again, until no statement waits.
 3. For a question about one metric, run `why`. For the data checks or the cuts, run `report`. Quote their sentences.
 4. If the person says that a claim is wrong or that something is missing, run `review`. Use their words as the note and their name as the reviewer.
 5. To improve the agent, run `lessons propose` and `lessons evaluate`. Give the result as the command gives it.
