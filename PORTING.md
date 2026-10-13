@@ -1,6 +1,6 @@
 # Porting kangaroo to the work laptop
 
-This is for the coding agent on the work laptop (Codex, Cursor or Claude Code), and for the person who runs it. Kangaroo is the reference. The work agent becomes kangaroo, with its four work seams connected. The blocking machinery of the current agent moves to `legacy/`.
+For the coding agent on the work laptop (Codex, Cursor or Claude Code) and the person who runs it. The work agent becomes kangaroo, with its four work seams connected. Its blocking machinery moves to `legacy/`.
 
 The laptop reads this repository and writes nothing back to it. Only counts come home. If a document in the work repository disagrees with this file, this file wins. List each disagreement.
 
@@ -24,7 +24,7 @@ python3 -m unittest discover -s tests
 python3 -m kangaroo demo --out /tmp/kangaroo-demo
 ```
 
-Both use only the Python standard library (3.14 works, no pip). The tests must pass, and `DEMO.md` must say that the lesson passed with 0 regressions. If one fails, stop. Report the name and the message of the failing test.
+Both use only the Python standard library (3.14 works). The tests must pass, and `DEMO.md` must say that the lesson passed with 0 regressions. If one fails, stop and report its name and message.
 
 Copy `kangaroo/vendor/ds_experiment_tools/` without changes, with `srm.py` and `_common.py`, and record the file hashes. Do not write the tools again.
 
@@ -67,11 +67,11 @@ The current agent marks M0 and M1 as not ready on each flight. The cause is its 
 - Traces, cases, lessons and cards stay on the laptop.
 - The deep dives need T3 through the privacy gate. Until then, they are access gaps, and the grade does not depend on them.
 - A lesson changes the knowledge only after its evaluation passes and the owner approves it by name.
-- In a chat, open this folder: `AGENTS.md` points the agent to the skill, and the skill runs `bin/kangaroo` in the shell. The MCP server is experimental. `experimental/mcp/README.md` gives the open questions to examine on the laptop.
+- In a chat, the skill runs `bin/kangaroo` in the shell. The MCP server is experimental: see `experimental/mcp/README.md`.
 
 ## 7. Test rules
 
-Use these rules for the suite of the work repository. It has many unit tests that pin internal state.
+For the suite of the work repository, which has many unit tests that pin internal state:
 
 1. Test through the doors that a person uses: a run from a scorecard or a warehouse, a lesson through the loop, a command through the API or the CLI.
 2. Assert outcomes, not internal state. Do not pin a flag, a status word, a counter or a private field. Assert the result that the flag must cause.
