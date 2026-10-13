@@ -3,15 +3,16 @@
     python3 -m kangaroo init
     python3 -m kangaroo analyze --scorecard S.csv [--contract C.json] [--config CFG.json]
     python3 -m kangaroo analyze --experiment NAME --warehouse sqlite:PATH [--configs DIR]
-    python3 -m kangaroo report [--run latest] [--part minute|details|triage_prep|all]
+    python3 -m kangaroo report [--run latest] [--part summary|details|all]
     python3 -m kangaroo why METRIC [--run latest]
     python3 -m kangaroo review correct|wrong|missing [--claim c2 | --metric NAME] [--note TEXT] [--reviewer NAME]
     python3 -m kangaroo lessons propose | list | evaluate ID [--warehouse sqlite:PATH] | approve ID --approver NAME
     python3 -m kangaroo approve-report --approver NAME [--warns power ...]
     python3 -m kangaroo cards list | confirm EXPERIMENT --cause TEXT --lesson TEXT --approver NAME
     python3 -m kangaroo runs
-    python3 -m kangaroo setup [claude|codex|cursor]   (how to add it to a chat host)
-    python3 -m kangaroo mcp            (the stdio MCP server)
+    python3 -m kangaroo setup [claude|codex|cursor] [--mcp]   (how to use it from a chat host)
+    python3 -m kangaroo install-skill DIR    (copy the skill, with this folder's paths, into DIR)
+    python3 -m kangaroo mcp            (the stdio MCP server; experimental, see experimental/mcp)
     python3 -m kangaroo demo --out DIR (the whole loop on synthetic data)
 
 The workspace is KANGAROO_HOME (default ~/.kangaroo), or --home.
@@ -33,7 +34,7 @@ def main(argv=None):
         a.add_argument(flag)
     r = sub.add_parser("report")
     r.add_argument("--run", default="latest")
-    r.add_argument("--part", default="minute", choices=["minute", "details", "triage_prep", "all"])
+    r.add_argument("--part", default="summary", choices=["summary", "details", "all"])
     w = sub.add_parser("why")
     w.add_argument("metric")
     w.add_argument("--run", default="latest")
@@ -62,6 +63,9 @@ def main(argv=None):
     sub.add_parser("runs")
     su = sub.add_parser("setup")
     su.add_argument("host", nargs="?", choices=["claude", "codex", "cursor"])
+    su.add_argument("--mcp", action="store_true")
+    sk = sub.add_parser("install-skill")
+    sk.add_argument("dest")
     sub.add_parser("mcp")
     d = sub.add_parser("demo")
     d.add_argument("--out", required=True)
@@ -95,7 +99,10 @@ def main(argv=None):
                                                                                  args.approver, h)
         elif args.cmd == "setup":
             from kangaroo import hosts
-            out = hosts.setup(args.host, h)
+            out = hosts.setup(args.host, h, args.mcp)
+        elif args.cmd == "install-skill":
+            from kangaroo import hosts
+            out = hosts.install_skill(args.dest)
         else:
             out = api.list_runs(h)
     except (ValueError, FileNotFoundError, KeyError) as err:

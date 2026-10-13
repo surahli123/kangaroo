@@ -41,12 +41,12 @@ def approval_status(run_dir, graded, readout_text):
     if graded["grade"] != "decision_grade":
         return None
     if not os.path.exists(path):
-        return "not yet approved"
+        return "not approved yet"
     with open(path, encoding="utf-8") as handle:
         stamp = json.load(handle)
     if stamp.get("readout_sha") != readout_sha(readout_text):
-        return "not yet approved (the stamp is for an older readout)"
+        return "not approved yet (the approval is for an older report)"
     missing = [w for w in graded["warns"] if w.split(":")[0] not in " ".join(stamp.get("warns_acknowledged", []))]
     if missing:
-        return f"not yet approved (the stamp doesn't acknowledge: {', '.join(m.split(':')[0] for m in missing)})"
+        return f"not approved yet (the approval does not name: {', '.join(m.split(':')[0] for m in missing)})"
     return f"approved by {stamp.get('approver')} on {stamp.get('time', '')[:10]}"

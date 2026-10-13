@@ -84,7 +84,7 @@ class Grade(unittest.TestCase):
 
     def test_stamp_needs_every_warning(self):
         result, out = run_flight("synth-3p-pin")
-        self.assertIn("not yet approved", result["readout"])
+        self.assertIn("not approved yet", result["readout"])
         with self.assertRaises(ValueError):
             evaluate.stamp_readout(out, "owner", [])
         evaluate.stamp_readout(out, "owner", ["power"])
@@ -104,7 +104,7 @@ class M0(unittest.TestCase):
     def test_missing_config_is_unknown_not_block(self):
         res = m0.config_check(None, {}, None, "control", "test", "the config CLI")
         self.assertEqual(res["status"], "UNKNOWN")
-        self.assertIn("the config CLI", res["reason"])
+        self.assertEqual(res["details"]["command"], "the config CLI")
 
     def test_a_pass_needs_a_source(self):
         with self.assertRaises(ValueError):
@@ -169,7 +169,7 @@ class Cuts(unittest.TestCase):
         self.assertEqual(result["counts"]["grades"], {"boost_15": "directional_only"})
         self.assertGreater(result["counts"]["access_gaps"], 0)
         self.assertEqual(result["counts"]["cuts_ran"], 0)
-        self.assertIn("tables are approved", result["readout"])
+        self.assertIn("Get access to these tables", result["readout"])
 
 
 class EndToEnd(unittest.TestCase):
@@ -205,20 +205,27 @@ class EndToEnd(unittest.TestCase):
                         self.assertTrue(set(c["statement_ids"]) <= statements)
             self.assertEqual(result["counts"]["unsupported"], 0)
 
+    def test_reports_follow_the_writing_rules(self):
+        from kangaroo.render import readout as rd
+        from kangaroo.render import ste
+        for name, (result, _) in self.results.items():
+            with self.subTest(flight=name):
+                self.assertEqual(ste.check(result["readout"], rd.team_names(result["pairs"])), [])
+
     def test_readout_order_and_no_internal_names(self):
         for name, (result, _) in self.results.items():
             body = result["readout"].split("\n---\n")[0]
             with self.subTest(flight=name):
                 for word in ("packet", "seal", "receipt", "M0-"):
                     self.assertNotIn(word, body)
-                order = [body.find(h) for h in ("## Before triage", "## Ask the engineer", "## Similar experiments")]
+                order = [body.find(h) for h in ("## Summary", "## Metrics", "## Data checks", "## Similar experiments")]
                 self.assertEqual(order, sorted(order))
                 self.assertTrue(body.splitlines()[0].startswith("# "))
 
     def test_blocked_flight_reads_no_movements(self):
         result, _ = self.results["synth-split-loss"]
-        self.assertIn("not interpretable", result["readout"])
-        self.assertNotIn("What moved:", result["readout"])
+        self.assertIn("Not readable until the data problem is fixed", result["readout"])
+        self.assertNotIn("## Causes", result["readout"])
         self.assertEqual(result["counts"]["cuts_ran"], 0)
 
     def test_trace_records_the_grade_after_each_action(self):
@@ -310,10 +317,11 @@ class PressureTest(unittest.TestCase):
         self.assertEqual(pairs["good"]["grade"]["grade"], "decision_grade")
         self.assertNotEqual(pairs["good"]["decision"]["call"], "cant_tell")  # the 3-arm split used to decide it
         self.assertEqual([g["name"] for g in pairs["good"]["config_for_decide"]["groups"]], ["control", "good"])
-        minute = result["readout"].split("# Details")[0]
-        self.assertIn("- good: Yes", minute)
-        self.assertNotIn("(bad) Bring an answer", minute)  # a blocked arm's movements aren't interpreted
-        self.assertIn("The bad arm has", minute)
+        summary = result["readout"].split("## Metrics")[0]
+        self.assertIn("| good | Decision grade", summary)
+        bad = summary.split("### bad")[1].split("### good")[0]
+        self.assertNotIn("Prepare an answer", bad)  # a blocked arm's movements aren't interpreted
+        self.assertIn("The bad arm has", bad)
 
     def test_one_mechanism_one_confirmation(self):
         result, _ = self.runs["synth-auth-requery"]
@@ -379,7 +387,7 @@ class PressureTest(unittest.TestCase):
         self.assertAlmostEqual(comparison["metrics"][0]["rel_delta"], 0.0009)  # the row with a p-value
         res = m0.consistency_check(comparison, {"primaries": {"metrics": [{"metric": "S"}]}}, sc["analysis"])
         self.assertEqual(res["status"], "WARN")
-        self.assertTrue(res["reason"].startswith("1 metric name appears twice"))
+        self.assertTrue(res["reason"].startswith("the snapshot has two rows for 1 metric name"))
 
     def test_cards_of_null_flights_are_not_similar_to_everything(self):
         result, out = self.runs["synth-null"]
@@ -485,15 +493,15 @@ class Interactive(unittest.TestCase):
     def test_a_session_from_a_scorecard_file(self):
         from kangaroo import api
         out = api.analyze(scorecard=self.scorecard, contract=self.contract, config=self.config, path=self.home)
-        self.assertTrue(out["text"].startswith("## In one minute"))
-        self.assertIn("Can this go to triage?", out["text"])
+        self.assertTrue(out["text"].startswith("# ") and "## Summary" in out["text"])
+        self.assertIn("Ready for triage:", out["text"])
         self.assertTrue(os.path.exists(out["html"]))
         self.assertIn("1P Long Click Rate", api.why("1P Long Click Rate", path=self.home)["text"])
-        self.assertIn("has no question", api.why("nothing like it", path=self.home)["text"])
+        self.assertIn("has no result", api.why("nothing like it", path=self.home)["text"])
         api.review("wrong", metric="1P Long Click Rate", note="it is displacement", reviewer="owner", path=self.home)
         proposed = api.propose(path=self.home)
         self.assertTrue(any(i.startswith("readout_rule-") for i in proposed["lessons"]))
-        self.assertIn("Questions triage will ask", api.report(part="triage_prep", path=self.home)["text"])
+        self.assertIn("## Data checks", api.report(part="details", path=self.home)["text"])
         with self.assertRaises(ValueError):
             api.approve_lesson(proposed["lessons"][0], "", path=self.home)
 
@@ -515,7 +523,7 @@ class Interactive(unittest.TestCase):
         self.assertEqual(replies[1]["result"]["serverInfo"]["name"], "kangaroo")
         self.assertIn("analyze", [t["name"] for t in replies[2]["result"]["tools"]])
         self.assertFalse(replies[3]["result"]["isError"])
-        self.assertIn("In one minute", replies[3]["result"]["content"][0]["text"])
+        self.assertIn("## Summary", replies[3]["result"]["content"][0]["text"])
         self.assertTrue(replies[4]["result"]["isError"])
         self.assertIn("approver", replies[4]["result"]["content"][0]["text"])
         self.assertEqual(replies[5]["error"]["code"], -32602)

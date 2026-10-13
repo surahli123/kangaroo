@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""The agent as a stdio MCP server, so a person can use it from a chat session in Codex,
-Cursor or Claude Code (CLI or desktop app). Standard library only.
+"""Experimental: the agent as a stdio MCP server. The supported chat route is the skill and the
+command line; this stays for research (see experimental/mcp/README.md). Standard library only.
 
     python3 -m kangaroo.mcp_server          (the host starts it; it speaks JSON-RPC on stdio)
 
@@ -20,7 +20,7 @@ from kangaroo import api
 PROTOCOL = "2025-06-18"
 INSTRUCTIONS = (
     "Search experiment analysis. Start with `analyze` (a scorecard file, or an experiment in the warehouse); reply with "
-    "the 'In one minute' text it returns, as written. Use `why` for a metric, `report` for details or the triage prep, "
+    "the summary it returns, as written. Use `why` for a metric, `report` for the tables, "
     "`review` when the person says a claim is right or wrong. Lessons: `propose_lessons`, then `evaluate_lesson`; "
     "`approve_lesson`, `approve_report` and `confirm_card` only when the person explicitly approves, with their name. "
     "Never restate numbers in your own words and never present a likely cause as confirmed.")
@@ -30,10 +30,10 @@ STR = {"type": "string"}
 RUN = {"type": "string", "description": "a run folder, an experiment name (its latest run), or 'latest'"}
 TOOLS = [
     ("analyze", api.analyze, "Analyze one experiment. Give a scorecard file (CSV or JSON rows), with its contract and "
-     "config if known, or an experiment name and a warehouse. Returns the 'In one minute' summary and the report's path.",
+     "config if known, or an experiment name and a warehouse. Returns the summary and the report's path.",
      S(experiment=STR, scorecard=STR, contract=STR, config=STR, warehouse=STR, configs=STR)),
-    ("report", api.report, "The latest (or a named) run's report: part = minute, details, triage_prep or all.",
-     S(run=RUN, part={"type": "string", "enum": ["minute", "details", "triage_prep", "all"]})),
+    ("report", api.report, "The latest (or a named) run's report: part = summary, details or all.",
+     S(run=RUN, part={"type": "string", "enum": ["summary", "details", "all"]})),
     ("why", api.why, "What the run found about one metric: its change, the best explanation and its support, and the "
      "checks that ran.", {**S(metric=STR, run=RUN), "required": ["metric"]}),
     ("review", api.review, "Record the person's verdict on a claim: correct, wrong or missing, with their note.",

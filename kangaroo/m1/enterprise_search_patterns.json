@@ -230,7 +230,7 @@
  "patterns": [
   {
    "id": "first_party_displaced",
-   "name": "3P results push 1P results down",
+   "name": "3P results take top positions from 1P results",
    "when": {
     "p3_placement": "up"
    },
@@ -244,7 +244,7 @@
    "contradicted_by": {
     "p1_long_click": "up"
    },
-   "mechanism": "3P results moved into top positions that 1P results held, so 1P clicks fall where 3P clicks rise, and total success moves little.",
+   "mechanism": "3P results now hold top positions that 1P results held before. 1P clicks decrease on the queries where 3P clicks increase. Total success changes little.",
    "reading": "mixed",
    "source": "Dmitriev et al., A Dirty Dozen, KDD 2017 (clicks shift between page elements); zero-sum first page in federated search",
    "deep_dives": [
@@ -299,7 +299,7 @@
   },
   {
    "id": "substitution_on_successful",
-   "name": "3P clicks replace success instead of adding to it",
+   "name": "3P clicks replace success and do not add to it",
    "when": {
     "p3_clicks": "up"
    },
@@ -309,7 +309,7 @@
    "contradicted_by": {
     "success": "up"
    },
-   "mechanism": "The extra 3P clicks land on queries that already ended in a success, so 3P clicks rise and success doesn't.",
+   "mechanism": "The extra 3P clicks occur on queries that already had a success. 3P clicks increase, but success does not.",
    "reading": "neutral",
    "source": "Hassan et al., CIKM 2013 (clicks are not satisfaction)",
    "deep_dives": [
@@ -329,7 +329,7 @@
      }
     }
    ],
-   "owner_question": "If the extra 3P clicks don't add success, what does the change buy?"
+   "owner_question": "If the extra 3P clicks do not add success, what does the change give users?"
   },
   {
    "id": "typeahead_funnel",
@@ -348,7 +348,7 @@
    "contradicted_by": {
     "fp_queries_per_user": "down"
    },
-   "mechanism": "Typeahead resolves fewer known-item queries, so more of them reach the full results page. Full-page metrics change because the query mix changed, not because full-page results did.",
+   "mechanism": "Typeahead finds fewer known-item queries, so more of them go to the full results page. Full-page metrics change because the query mix changes, not because the full-page results change.",
    "reading": "bad",
    "source": "funnel between surfaces; Kohavi et al., KDD 2012 (metrics that move for the wrong reason)",
    "deep_dives": [
@@ -401,7 +401,7 @@
      }
     }
    ],
-   "owner_question": "Typeahead now finds fewer known items; what does the new model gain in return?"
+   "owner_question": "Typeahead now finds fewer known items. What does the new model give in return?"
   },
   {
    "id": "answer_substitution",
@@ -419,7 +419,7 @@
    "contradicted_by": {
     "success": "down"
    },
-   "mechanism": "The answer panel shows on more queries and answers some of them, so users click 1P results less; success counts answers, so it holds or rises.",
+   "mechanism": "The answer panel shows on more queries and answers some of them, so users click 1P results less. Success includes answers, so success stays the same or increases.",
    "reading": "mixed",
    "source": "Li et al., SIGIR 2009 (good abandonment); Chuklin and Serdyukov, SIGIR 2012",
    "deep_dives": [
@@ -460,7 +460,7 @@
      }
     }
    ],
-   "owner_question": "Are answers a good replacement for the 1P clicks they take?"
+   "owner_question": "Are answers a good replacement for the 1P clicks that they replace?"
   },
   {
    "id": "authorized_struggle",
@@ -471,12 +471,17 @@
    },
    "strengthened_by": {
     "authorized_share": "up",
-    "p1_long_click": "down"
+    "p1_long_click": "down",
+    "typeahead_ctr": "down",
+    "p1_binary_ctr": "down",
+    "success_weighted": "down",
+    "answer_shown": "down",
+    "p3_placement": "up"
    },
    "contradicted_by": {
     "success": "up"
    },
-   "mechanism": "Users with authorized 3P apps issue more full-page queries that end without success, which raises query volume and lowers success.",
+   "mechanism": "Users with connected 3P apps make more full-page queries that end without success. Query volume increases and success decreases. The extra queries also change per-query rates, for example typeahead and 1P click rates.",
    "reading": "bad",
    "source": "Hassan et al., WSDM 2013 (struggling searchers); Song et al., WWW 2013",
    "deep_dives": [
@@ -517,11 +522,11 @@
      }
     }
    ],
-   "owner_question": "Why do users with connected apps search again more, and is the change the cause?"
+   "owner_question": "Why do users with connected apps search again more? Is the change the cause?"
   },
   {
    "id": "speed_cost",
-   "name": "Slower results cost engagement",
+   "name": "Slower results decrease engagement",
    "when": {
     "latency": "up"
    },
@@ -530,7 +535,7 @@
     "p1_long_click": "flat_or_down"
    },
    "contradicted_by": {},
-   "mechanism": "The treatment serves results more slowly, and slower pages lose clicks and raise abandonment, which can hide a relevance gain. Speed effects tend to grow over weeks rather than fade.",
+   "mechanism": "The test arm shows results more slowly. Slower pages get fewer clicks and more abandonment, and this can hide a relevance gain. Speed effects usually increase over weeks.",
    "deep_dives": [
     {
      "cut": "success and 1P long clicks by latency bucket, per arm",
@@ -540,13 +545,13 @@
    ],
    "reading": "bad",
    "source": "Brutlag, Google, 2009 (400 ms delay: -0.44% searches in weeks 1-3, -0.76% in weeks 4-6, still -0.21% after removal); Dmitriev et al., A Dirty Dozen: Twelve Common Metric Interpretation Pitfalls, KDD 2017 (latency moved by page mix)",
-   "owner_question": "Is the latency cost worth what the change gains?"
+   "owner_question": "Is the latency cost worth the gain of the change?"
   },
   {
    "id": "denominator_driven",
-   "name": "A ratio moved because its denominator moved",
+   "name": "A ratio changed because its denominator changed",
    "kind": "ratio",
-   "mechanism": "{ratio} moved because {denominator} moved ({denominator_change}), not because {numerator} changed; the ratio's story is about volume, not quality.",
+   "mechanism": "{ratio} changed because {denominator} changed ({denominator_change}), not because {numerator} changed. The change is about volume, not quality.",
    "deep_dives": [
     {
      "cut": "{numerator} and {denominator} per user, side by side",
@@ -569,9 +574,9 @@
   },
   {
    "id": "concentrated_segment",
-   "name": "The effect sits in one segment",
+   "name": "The effect is in one segment",
    "kind": "segment",
-   "mechanism": "{metric}'s change comes mostly from {segment} ({share} of the overall change), and segments differ more than noise allows.",
+   "mechanism": "Most of the change in {metric} comes from {segment} ({share} of the total change). The segments differ more than noise can explain.",
    "deep_dives": [
     {
      "cut": "{metric} for {segment} vs the rest, with triggered queries only",
@@ -594,10 +599,10 @@
   },
   {
    "id": "novelty",
-   "name": "The effect is fading",
+   "name": "The effect decreases over time",
    "kind": "check",
    "check": "novelty",
-   "mechanism": "The effect shrinks with each day users have had the treatment, so the long-run effect is likely smaller than the average. UI changes tend to fade; ranking, speed and ad-load effects tend to grow, so a fading ranking effect deserves a second look.",
+   "mechanism": "The effect is smaller for each day that users have the treatment, so the long-term effect is probably smaller than the average. A ranking effect that decreases needs a second look.",
    "deep_dives": [
     {
      "cut": "effect by days since first exposure, per weekly cohort",
@@ -615,10 +620,10 @@
   },
   {
    "id": "artifact",
-   "name": "A data or logging problem, not user behaviour",
+   "name": "A data or logging problem, not user behavior",
    "kind": "check",
    "check": "sample_split|config_params|config_edits|scorecard|pre_period|invariant",
-   "mechanism": "A validity check flagged the data itself, so the movements may reflect logging, assignment or export problems rather than users.",
+   "mechanism": "A validity check found a problem in the data. The changes can come from logging, assignment or export problems, not from users.",
    "deep_dives": [
     {
      "cut": "event counts per user by arm for every logged event the change could touch",

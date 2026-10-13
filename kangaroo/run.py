@@ -6,10 +6,9 @@
 
 Steps: resolve the experiment; read T1's latest snapshot and daily series; run M0 on that
 data and grade each (control, test) pair; run M1 per pair (launch call, explanations, and
-the cuts the plan can script, fed back as evidence); render the readout and a triage prep per
-pair; write the live trace, a card draft, a review form and the frozen case inputs.
+the cuts the plan can script, fed back as evidence); render the readout; write the live trace, a card draft, a review form and the frozen case inputs.
 
-Writes into RUN_DIR: readout.md, triage_prep_<arm>.md, trace.json, review.json,
+Writes into RUN_DIR: readout.md, readout.html, trace.json, review.json,
 card_draft.json and case/ (the aggregate inputs the learning loop replays). Prints counts only.
 """
 
@@ -23,7 +22,6 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 
 import explain  # noqa: E402
-import render as core_render  # noqa: E402
 
 from learning import cards as cardlib  # noqa: E402
 from learning import knowledge  # noqa: E402
@@ -32,7 +30,6 @@ from kangaroo.m0.checks import run_m0  # noqa: E402
 from kangaroo.m0.grade import approval_status, readout_sha  # noqa: E402
 from kangaroo.m1 import cuts as cutlib  # noqa: E402
 from kangaroo.m1 import method  # noqa: E402
-from kangaroo.render import brief  # noqa: E402
 from kangaroo.render import readout as rd  # noqa: E402
 from kangaroo.render.html import to_html  # noqa: E402
 from kangaroo.sources import config as cfgsrc  # noqa: E402
@@ -121,6 +118,7 @@ def run(experiment, overlay, warehouse, configs, out_dir, knowledge_dir=None, ca
         out = method.investigate(ctx, test, m0[test], mid[test], trace)
         out["m0"] = m0[test]
         out["feature_metrics"] = contract.get("feature_metrics") or []
+        out["hypothesis"] = contract.get("hypothesis")
         out["metrics"] = comparison["metrics"]
         out["m0_details"] = next(c["details"] for c in m0[test] if c["id"] == "M0-1")
         trace.claims(test, out["claims"])
@@ -144,9 +142,6 @@ def run(experiment, overlay, warehouse, configs, out_dir, knowledge_dir=None, ca
         handle.write(text)
     with open(os.path.join(out_dir, "readout.html"), "w", encoding="utf-8") as handle:
         handle.write(to_html(text, f"{display}: experiment report"))
-    for p in pairs:
-        with open(os.path.join(out_dir, f"triage_prep_{p['test']}.md"), "w", encoding="utf-8") as handle:
-            handle.write(core_render.triage_prep(p["decision"], p["explained"]))
 
     claims = [c for p in pairs for c in p["claims"]]
     counts = {"pairs": len(pairs), "claims": len(claims), "unsupported": sum(len(method.unsupported(p["claims"], p["actions"], library)) for p in pairs),
@@ -183,12 +178,12 @@ def run(experiment, overlay, warehouse, configs, out_dir, knowledge_dir=None, ca
 
 def next_check_proxies(pairs, templates, wh_cfg):
     """The plan's first measure without a reviewer, on the check the report tells the person to
-    run next (brief.next_check): is it scriptable, runnable under current access, and aimed at
+    run next (readout.next_check): is it scriptable, runnable under current access, and aimed at
     the top open question?"""
     out = {}
     approved = set(wh_cfg.get("approved") or [])
     for p in pairs:
-        top, question = brief.next_check(p)
+        top, question = rd.next_check(p)
         if not top:
             out[p["test"]] = {"has_next_check": False}
             continue

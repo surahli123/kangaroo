@@ -7,7 +7,7 @@ Everything lives in one workspace folder (KANGAROO_HOME, default ~/.kangaroo):
     cards/      experiment cards, drafted by runs and confirmed by people
     cases/      frozen runs, which lessons are evaluated on
     lessons/    candidate/ and approved/
-    runs/       one folder per run: readout.md, readout.html, triage prep, trace, review
+    runs/       one folder per run: readout.md, readout.html, trace, review
 
 Every function returns a dict with a short `text` for a person, plus paths and counts.
 None of them writes to the warehouse. The only functions that change the knowledge are
@@ -18,6 +18,7 @@ import contextlib
 import glob
 import json
 import os
+import re
 import shutil
 import sys
 import time
@@ -88,9 +89,9 @@ def _run_dir(h, run):
 
 
 def minute(text):
-    start = text.find("## In one minute")
-    end = text.find("# Details")
-    return text[start:end].strip() if start >= 0 else text.split("\n## ", 2)[0]
+    """The title and the Summary section of a report."""
+    from kangaroo.render.readout import summary_text
+    return summary_text(text)
 
 
 def analyze(experiment=None, scorecard=None, contract=None, config=None, warehouse=None, configs=None, path=None):
@@ -125,24 +126,26 @@ def analyze(experiment=None, scorecard=None, contract=None, config=None, warehou
             "counts": c, "text": minute(result["readout"]) + f"\n\nFull report: {os.path.join(out, 'readout.html')}"}
 
 
-def report(run="latest", part="minute", path=None):
-    """The report, or one part: minute, details, triage_prep, all."""
+def report(run="latest", part="summary", path=None):
+    """The report, or one part: summary (what analyze returns), details (the tables), all."""
     rd = _run_dir(home(path), run)
     with open(os.path.join(rd, "readout.md"), encoding="utf-8") as handle:
         text = handle.read()
-    if part == "minute":
+    if part in ("summary", "minute"):
         out = minute(text)
     elif part == "details":
-        out = text[text.find("# Details"):] if "# Details" in text else text
-    elif part == "triage_prep":
-        parts = []
-        for prep in sorted(glob.glob(os.path.join(rd, "triage_prep_*.md"))):
-            with open(prep, encoding="utf-8") as handle:
-                parts.append(handle.read())
-        out = "\n\n".join(parts)
+        out = text[text.find("## Metrics"):] if "## Metrics" in text else text
     else:
         out = text
     return {"run_dir": rd, "text": out}
+
+
+def _ste(text):
+    """A tool's change text in the report's words: 'fell 4.70% (-6.36% to -3.03%)' -> 'decreased 4.70% (95% CI ...)'."""
+    text = re.sub(r"didn't move clearly \(([^()]*) \(([^()]*)\)\)", r"did not change clearly: \1 (95% CI \2)", text)
+    text = re.sub(r"\b(fell|rose) ([\d.]+%) \(([^()]*)\)",
+                  lambda m: f"{'decreased' if m.group(1) == 'fell' else 'increased'} {m.group(2)} (95% CI {m.group(3)})", text)
+    return text.replace("didn't", "did not").replace("doesn't", "does not")
 
 
 def why(metric, run="latest", path=None):
@@ -154,33 +157,36 @@ def why(metric, run="latest", path=None):
               or [c for c in trace["claim_records"] if key in c["metric"].lower()])
     if not claims:
         moved = sorted({c["metric"] for c in trace["claim_records"]})
-        return {"run_dir": rd, "text": f"The run has no question about '{metric}'. It asked about: {', '.join(moved)}."}
+        return {"run_dir": rd, "text": f"The run has no result for '{metric}'. It has results for: {', '.join(moved)}."}
+    support = {"confirmed": "Confirmed", "consistent": "Consistent", "inferred": "Likely", "exploratory": "Exploratory"}
+    outcome = {"confirms": "This agrees with the cause.", "refutes": "This rules out the cause."}
+    blocked = {g["pair"] for g in trace.get("grades", []) if g.get("grade") == "not_permitted"}
     lines = []
     for c in claims:
-        lines.append(f"{c['metric']} ({c['pair']}): {c['change']}.")
+        if c["pair"] in blocked:
+            lines.append(f"{c['metric']} ({c['pair']}): not readable. Fix the data problem of this arm first.")
+            continue
+        lines.append(f"{c['metric']} ({c['pair']}): {_ste(c['change'])}.")
         if c["candidate"]:
-            support = {"confirmed": "confirmed by data", "consistent": "fits the data, not yet confirmed",
-                       "inferred": "likely, not yet checked", "exploratory": "exploratory only"}.get(c["support_level"],
-                                                                                                    c["support_level"])
-            lines.append(f"Best explanation ({support}): {c['candidate']}. {c['mechanism']}")
+            lines.append(f"Best explanation: {c['candidate']} ({support.get(c['support_level'], 'Possible')}). {c['mechanism']}")
             ran = [a for a in trace["action_records"] if a.get("pair") == c["pair"] and a.get("target_pattern") == c["candidate_id"]
                    and a["status"] in ("ran", "access gap")]
             for a in ran:
-                role = "Control check" if a.get("role") == "control" else "Check"
-                lines.append(f"- {role}: {a['exact_next_task']}: " + (f"{a.get('outcome')} ({a.get('detail')})" if a["status"] == "ran"
-                                                                      else f"not run ({a['source_or_access_gap']})"))
+                role = "Control cut" if a.get("role") == "control" else "Cut"
+                lines.append(f"- {role}: {a['exact_next_task']}: " + (
+                    f"{_ste(a.get('detail') or '')}. {outcome.get(a.get('outcome'), 'This does not confirm the cause and does not rule it out.')}"
+                    if a["status"] == "ran" else f"not run ({a['source_or_access_gap']})."))
             if c.get("awaiting"):
-                lines.append(f"Not confirmed until: {'; '.join(c['awaiting'][:2])}.")
+                lines.append(f"Not confirmed until this agrees: {'; '.join(c['awaiting'][:2])}.")
         elif c.get("status") == "possibly chance":
-            lines.append("It isn't a registered metric and nothing explains it; with many metrics some move by chance.")
+            lines.append("It is not a registered metric, and no cause explains it. Some metrics change by chance.")
         elif c["change"].startswith("didn't move"):
-            lines.append("No explanation in the library for why it didn't move as expected.")
+            lines.append("No cause in the library explains why it did not change as the contract expected.")
         else:
-            lines.append("No explanation in the library yet. The move is clear, so it needs a cause; 'unexplained' is the "
-                         "honest answer until a check finds one.")
+            lines.append("No cause in the library explains this clear change. Say that it is not explained. Do not guess.")
         if c["statement_ids"]:
-            lines.append(f"Data behind it: {', '.join(c['statement_ids'])}.")
-        lines.append(f"To mark this right or wrong: review claim {c['claim_id']} of this run.")
+            lines.append(f"Data: {', '.join(c['statement_ids'])}.")
+        lines.append(f"To mark this claim as right or wrong, review claim {c['claim_id']} of this run.")
     return {"run_dir": rd, "text": "\n".join(lines)}
 
 

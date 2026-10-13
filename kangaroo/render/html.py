@@ -12,11 +12,11 @@ body { font: 15px/1.55 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; 
        max-width: 860px; margin: 0 auto; padding: 24px 16px 48px; }
 h1 { font-size: 26px; margin: 0 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
 h1.details { font-size: 20px; margin-top: 40px; color: var(--muted); }
-h2 { font-size: 19px; margin: 28px 0 10px; }
+h2 { font-size: 19px; margin: 28px 0 10px; } h3 { font-size: 16px; margin: 18px 0 6px; }
 section.minute { background: var(--soft); border: 1px solid var(--line); border-radius: 10px; padding: 4px 20px 12px; }
 section.minute h2 { margin-top: 14px; }
 p { margin: 8px 0; } ul, ol { margin: 6px 0 10px; padding-left: 24px; } li { margin: 3px 0; }
-table { border-collapse: collapse; margin: 10px 0; font-size: 14px; } th, td { border: 1px solid var(--line); padding: 5px 10px; }
+table { border-collapse: collapse; margin: 10px 0; font-size: 14px; } td { vertical-align: top; } th, td { border: 1px solid var(--line); padding: 5px 10px; }
 th { background: var(--soft); text-align: left; }
 code { background: var(--soft); padding: 1px 4px; border-radius: 4px; font-size: 13px; }
 hr { border: 0; border-top: 1px solid var(--line); margin: 28px 0 12px; }
@@ -33,10 +33,10 @@ def _inline(text):
 
 
 def _go_class(text):
-    if "Can this go to triage?" not in text:
+    if "Ready for triage:" not in text:
         return ""
-    after = text.split("Can this go to triage?", 1)[1].strip(" *")
-    if after.startswith("No") or after.startswith("Not yet"):
+    after = text.split("Ready for triage:", 1)[1].strip(" *")
+    if after.startswith("No"):
         return " go-no"
     return " go-yes" if after.startswith("Yes.") else " go-dir"
 
@@ -46,15 +46,16 @@ def to_html(markdown, title):
     out, i, in_minute = [], 0, False
     while i < len(lines):
         line = lines[i]
-        if line.startswith("## In one minute"):
-            out.append('<section class="minute"><h2>In one minute</h2>')
+        if line.startswith("## Summary"):
+            out.append('<section class="minute"><h2>Summary</h2>')
             in_minute = True
         elif line.startswith("# "):
             if in_minute:
                 out.append("</section>")
                 in_minute = False
-            cls = ' class="details"' if line.strip() == "# Details" else ""
-            out.append(f"<h1{cls}>{_inline(line[2:])}</h1>")
+            out.append(f"<h1>{_inline(line[2:])}</h1>")
+        elif line.startswith("### "):
+            out.append(f"<h3>{_inline(line[4:])}</h3>")
         elif line.startswith("## "):
             if in_minute:
                 out.append("</section>")
@@ -89,7 +90,7 @@ def to_html(markdown, title):
                 f"<li>{_inline(t)}" + ("<ul>" + "".join(f"<li>{_inline(s)}</li>" for s in subs) + "</ul>" if subs else "") + "</li>"
                 for t, subs in items) + f"</{tag}>")
             continue
-        elif line.startswith("Provenance:"):
+        elif line.startswith(("Provenance:", "Sources:", "Support:")):
             out.append(f'<p class="prov">{_inline(line)}</p>')
         elif line.strip():
             out.append(f'<p class="{_go_class(line).strip()}">{_inline(line)}</p>' if _go_class(line) else f"<p>{_inline(line)}</p>")

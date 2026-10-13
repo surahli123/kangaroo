@@ -56,7 +56,9 @@ The current agent marks M0 and M1 not ready on every flight because of its state
 
 ## 6. Use it from Codex
 
-`python3 bin/kangaroo setup codex` prints the `codex mcp add` command with this folder's absolute paths, and the skill copy command. Then, in a Codex chat: "analyze the scorecard at export.csv".
+Open this folder in Codex: `AGENTS.md` points it to the skill, and the skill runs `bin/kangaroo` in the shell. For other folders, `python3 bin/kangaroo setup codex` prints the line to add to `~/.codex/AGENTS.md`. Then, in a Codex chat: "analyze the scorecard at export.csv".
+
+The MCP server is experimental. `experimental/mcp/README.md` lists what was tested and the open questions to research on the laptop.
 
 ## 7. What to send home
 

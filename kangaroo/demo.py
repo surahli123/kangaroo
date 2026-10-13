@@ -73,9 +73,9 @@ def main(argv=None):
         log.append(f"   - {name}: grades {sorted({p['grade'] for p in o.values()})}, mechanism "
                    f"{'found' if evaluate.gold_score(o, gold[name]) == 2 else 'missed'} (planted: {gold[name]['mechanism']}).")
     cards.confirm(card_dir, "synth-3p-boost",
-                  "The 3P offset moved 3P results into rank 1 on queries with a 3P candidate, and 1P long clicks fell on "
-                  "exactly those queries; total success held.",
-                  "Read 1P long clicks on 3P-eligible queries before overall success; the overall rate dilutes the loss.",
+                  "The 3P offset moved 3P results to rank 1 on queries with a 3P candidate. 1P long clicks decreased on "
+                  "those queries. Total success did not change.",
+                  "Read 1P long clicks on 3P-eligible queries before total success. The total rate makes the loss look smaller.",
                   "demo-owner")
     log += ["", "   A person confirmed the card for synth-3p-boost (cause and lesson).", ""]
 

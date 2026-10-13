@@ -267,7 +267,7 @@ def stamp_readout(run_dir, approver, warns_acknowledged):
     path = os.path.join(run_dir, "readout.md")
     with open(path, encoding="utf-8") as handle:
         text = handle.read()
-    text = text.replace("**Decision grade**, not yet approved.", f"**Decision grade**, approved by {approver} on {stamp['time'][:10]}.")
+    text = text.replace("Decision grade, not approved yet", f"Decision grade, approved by {approver} on {stamp['time'][:10]}")
     with open(path, "w", encoding="utf-8") as handle:
         handle.write(text)
     return stamp
