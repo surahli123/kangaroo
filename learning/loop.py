@@ -4,7 +4,8 @@
     python3 -m learning.loop freeze   --run RUN_DIR --cases CASES [--gold GOLD.json]
     python3 -m learning.loop propose  --runs RUNS_DIR --cases CASES --knowledge K --lessons LESSONS
     python3 -m learning.loop evaluate --lesson L.json --cases CASES --overlay O --knowledge K [--warehouse sqlite:PATH]
-    python3 -m learning.loop approve  --lesson L.json --report R.json --approver NAME --knowledge K --lessons LESSONS
+    python3 -m learning.loop approve  --lesson L.json --report R.json --approver NAME --knowledge K --lessons LESSONS \
+        --cases CASES --overlay OVERLAY   (approval re-runs the evaluation on the cases)
     python3 -m learning.loop stamp    --run RUN_DIR --approver NAME --warns "power" ...
     python3 -m learning.loop confirm-card --cards CARDS --experiment NAME --cause TEXT --lesson TEXT --approver NAME
     python3 -m learning.loop stats    --runs RUNS_DIR
@@ -66,6 +67,8 @@ def main(argv=None):
     a.add_argument("--approver", required=True)
     a.add_argument("--knowledge", required=True)
     a.add_argument("--lessons", required=True)
+    a.add_argument("--cases", required=True, help="the frozen cases: approval re-runs the evaluation on them")
+    a.add_argument("--overlay", required=True)
     s = sub.add_parser("stamp")
     s.add_argument("--run", required=True)
     s.add_argument("--approver", required=True)
@@ -126,7 +129,8 @@ def main(argv=None):
                   f"{len(report.get('fit_cases', []))} fit cases, {len(report.get('regressions', []))} regressions, "
                   f"improved: {', '.join(report.get('improved', [])) or 'none'}")
         elif args.cmd == "approve":
-            version = evaluate.approve(load(args.lesson), load(args.report), args.approver, args.knowledge, args.lessons)
+            version = evaluate.approve(load(args.lesson), load(args.report), args.approver, args.knowledge, args.lessons,
+                                       args.cases, args.overlay)
             print(f"approve: applied; knowledge version {version[:12]}")
         elif args.cmd == "stamp":
             stamp = evaluate.stamp_readout(args.run, args.approver, args.warns)

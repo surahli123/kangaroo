@@ -94,6 +94,14 @@ def minute(text):
     return summary_text(text)
 
 
+def _new_run_dir(runs, experiment, stamp):
+    """A run folder that no earlier run uses, also when two runs start in the same second."""
+    out, n = os.path.join(runs, f"{experiment}-{stamp}"), 2
+    while os.path.exists(out):
+        out, n = os.path.join(runs, f"{experiment}-{stamp}-{n}"), n + 1
+    return out
+
+
 def analyze(experiment=None, scorecard=None, contract=None, config=None, warehouse=None, configs=None, path=None):
     """Run the agent on one experiment: from a scorecard file, or from a warehouse."""
     h = home(path)
@@ -107,14 +115,14 @@ def analyze(experiment=None, scorecard=None, contract=None, config=None, warehou
         experiment = experiment or (names[0] if len(names) == 1 else None)
         if not experiment:
             raise ValueError(f"the scorecard holds {len(names)} experiments ({', '.join(names[:5])}); say which one")
-        out = os.path.join(d["runs"], f"{experiment}-{stamp}")
+        out = _new_run_dir(d["runs"], experiment, stamp)
         wh, _ = runner.scorecard_warehouse(scorecard, out, wh_cfg["tables"]["t1"])
         overrides = {"approved": ["t1"]}
     elif warehouse:
         wh = SqliteWarehouse(warehouse.partition(":")[2] if warehouse.startswith("sqlite:") else warehouse)
         if not experiment:
             raise ValueError("say which experiment to analyze")
-        out = os.path.join(d["runs"], f"{experiment}-{stamp}")
+        out = _new_run_dir(d["runs"], experiment, stamp)
     else:
         raise ValueError("give a scorecard file, or a warehouse (sqlite:PATH at home)")
     cfg_source = cfgsrc.OneConfig(_load(config)) if config else cfgsrc.JsonDirConfig(configs)
