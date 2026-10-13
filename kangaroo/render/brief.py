@@ -172,7 +172,8 @@ def todo(p, library, command="the config CLI"):
         elif c["id"] == "M0-2" and c["status"] == "UNKNOWN":
             steps.append("Name the scorecard metric that counts all exposed users, so the sample split can be tested.")
         elif c["status"] == "BLOCK" and c["id"] == "M0-2":
-            steps.append("Find where the test arm loses users (exposure logging, redirects, crashes), fix it, and rerun.")
+            arm = "the test arm" if p["test"] == "test" else f"the {p['test']} arm"
+            steps.append(f"Find where {arm} loses users (exposure logging, redirects, crashes), fix it, and rerun.")
         elif c["status"] == "BLOCK":
             steps.append(f"Fix this first: {c['reason']}.")
         elif c["id"] == "duration":

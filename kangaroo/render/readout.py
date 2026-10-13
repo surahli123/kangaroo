@@ -215,7 +215,9 @@ def summary(pairs, control):
         cells = []
         for c in cols:
             m = by_arm[p["test"]].get(c.lower())
-            if not m or m.get("rel_delta") is None:
+            if p["grade"]["grade"] == "not_permitted":
+                cells.append("not readable")  # its numbers mean nothing until the block is fixed
+            elif not m or m.get("rel_delta") is None:
                 cells.append("missing")
             else:
                 clear = m.get("rel_ci") and (m["rel_ci"][0] > 0 or m["rel_ci"][1] < 0)
@@ -223,7 +225,8 @@ def summary(pairs, control):
         lines.append("| " + " | ".join([p["test"], p["grade"]["text"], call] + cells) + " |")
     lines.append("")
     arms_of = {}
-    for p in pairs:
+    readable = [p for p in pairs if p["grade"]["grade"] != "not_permitted"]
+    for p in readable:
         for w in p["grade"]["warns"]:
             arms_of.setdefault(w, []).append(p["test"])
     for w, arms in arms_of.items():
