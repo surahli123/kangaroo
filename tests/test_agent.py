@@ -493,6 +493,18 @@ class Session(unittest.TestCase):
             self.assertAlmostEqual(kept[0]["rel_delta"], original["relative_delta"] / 100)  # the row with a p-value
             warns = [w for g in load(os.path.join(dup["run_dir"], "trace.json"))["grades"] if g["after"] == "M0" for w in g["warns"]]
             self.assertTrue(any(w.startswith(m0.NAMES["M0-4"]) for w in warns), warns)
+        with self.subTest(case="T1 with sequential and fixed-horizon rows reads one mode, in the scorecard and the series"):
+            base = self.analyze("synth-3p-pin", rows)["run_dir"]
+            shift = lambda v, d: None if v is None else v + d  # noqa: E731
+            wide = lambda r: {**r, "use_sequential": 1, "relative_ci_lower": shift(r["relative_ci_lower"], -1.0),  # noqa: E731
+                              "relative_ci_upper": shift(r["relative_ci_upper"], 1.0)}
+            both = self.analyze("synth-3p-pin", rows + [wide(r) for r in rows])["run_dir"]
+            comparison = load(os.path.join(both, "case", "scorecard.json"))
+            kept = next(m for m in comparison["comparisons"][0]["metrics"] if m["metric"] == "Search Success Rate")
+            original = next(r for r in rows if primary(r) and r["ds"] == latest)
+            self.assertEqual((comparison["analysis"]["sequential"], comparison["comparisons"][0]["duplicates"]), (True, []))
+            self.assertAlmostEqual(kept["rel_ci"][0], (original["relative_ci_lower"] - 1.0) / 100)  # the wider read
+            self.assertEqual(len(load(os.path.join(both, "case", "series.json"))), len(load(os.path.join(base, "case", "series.json"))))
         with self.subTest(case="without the exposed-user count, the vendor's balance check decides the split"):
             loss = [r for r in t1_rows("synth-split-loss") if r["metric_name"] != "Exposed Users"]
             self.assertEqual(self.analyze("synth-split-loss", loss)["counts"]["grades"], {"test": "not_permitted"})

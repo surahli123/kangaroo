@@ -1,8 +1,10 @@
 """T1, the vendor scorecard, read from the warehouse into ds-experiment's canonical scorecard.
 
 T1 has one row per experiment, metric, control arm, test arm, snapshot and mode, written
-daily. The overlay's warehouse.json maps its column names (`t1_columns`); the defaults are
-the synthetic warehouse's. Relative fields named in `_percent_fields` are percents.
+daily. The mode is CUPED on or off, and sequential testing on or off. The overlay's
+warehouse.json maps its column names (`t1_columns`); the defaults are the synthetic
+warehouse's. A value can be a SQL expression, for example a struct field or NULL. Relative
+fields named in `_percent_fields` are percents.
 """
 
 DEFAULT_COLUMNS = {
@@ -33,7 +35,7 @@ def latest_sql(table, cols):
 def series_sql(table, cols):
     return (f"SELECT {cols['snapshot']} AS snapshot, {cols['metric']} AS metric, {cols['test_group']} AS test_group, "
             f"{cols['control_units']} AS control_units, {cols['test_units']} AS test_units, {cols['rel_delta']} AS rel_delta, "
-            f"{cols['cuped']} AS cuped FROM {table} WHERE {cols['experiment']} = :experiment AND {cols['metric']} IN :metrics "
+            f"{cols['cuped']} AS cuped, {cols['sequential']} AS sequential FROM {table} WHERE {cols['experiment']} = :experiment AND {cols['metric']} IN :metrics "
             f"ORDER BY {cols['snapshot']}")
 
 
@@ -56,14 +58,26 @@ def _flag(v):
     return bool(v) if v is not None else None
 
 
-def scorecard_from_rows(rows, cols, prefer_cuped=True, ci_level=0.95):
-    """Rows (with the canonical field names from select_list) -> canonical scorecard."""
+def pick(rows, field, prefer):
+    """The preferred mode if T1 has it, else the only one; and the rows of that mode."""
+    modes = {_flag(r.get(field)) for r in rows}
+    mode = prefer if prefer in modes else sorted(modes, key=str)[0]
+    return mode, [r for r in rows if _flag(r.get(field)) == mode]
+
+
+def same_mode(rows, analysis):
+    """Series rows of the mode that the scorecard used, so that one metric has one row a day."""
+    return [r for r in rows if _flag(r.get("cuped")) == analysis["cuped"] and _flag(r.get("sequential")) == analysis["sequential"]]
+
+
+def scorecard_from_rows(rows, cols, prefer_cuped=True, ci_level=0.95, prefer_sequential=True):
+    """Rows (with the canonical field names from select_list) -> canonical scorecard, in one mode.
+    Sequential is preferred by default: its intervals are wider, so a call never rests on the narrower read."""
     if not rows:
         return None
     percent = set(cols.get("_percent_fields") or [])
-    modes = {_flag(r["cuped"]) for r in rows}
-    mode = prefer_cuped if prefer_cuped in modes else next(iter(modes))
-    rows = [r for r in rows if _flag(r["cuped"]) == mode]
+    mode, rows = pick(rows, "cuped", prefer_cuped)
+    sequential, rows = pick(rows, "sequential", prefer_sequential)
     comparisons, control = {}, None
     for r in rows:
         control = control or r["control_group"]
@@ -94,6 +108,6 @@ def scorecard_from_rows(rows, cols, prefer_cuped=True, ci_level=0.95):
                 kept[key] = m
         out.append({"test_group": g, "metrics": list(kept.values()), "duplicates": sorted(set(dupes))})
     return {"source": "t1", "experiment_id": rows[0].get("experiment"), "control_group": control,
-            "analysis": {"ci_level": ci_level, "cuped": mode, "sequential": _flag(rows[0].get("sequential")),
+            "analysis": {"ci_level": ci_level, "cuped": mode, "sequential": sequential,
                          "mc_correction": None, "as_of": snapshot},
             "comparisons": out}

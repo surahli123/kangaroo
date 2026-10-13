@@ -26,6 +26,7 @@
  "t3_columns": {},
  "split_count_metric": "Exposed Users",
  "prefer_cuped": false,
+ "prefer_sequential": true,
  "ci_level": 0.95,
  "min_units_per_cell": 100,
  "max_cuts": 8,

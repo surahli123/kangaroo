@@ -16,6 +16,8 @@ Do not rewrite kangaroo. Copy it. Write new code only for the seams in section 4
 
 In session 1, list what the work repository has that kangaroo does not, and get approval before the move. The prompts for the three sessions are in the work-prompts repository.
 
+To take a later kangaroo commit, make the diff from the copied commit and apply it with `git apply -3`. Change kangaroo code only with the person's approval for that change and a test. Write each change in `~/ds-handoff/upstream.md`, so that kangaroo takes it back and the next update has no conflicts.
+
 ## 2. Prove the runtime
 
 ```
@@ -34,7 +36,8 @@ The code uses T1 to T4 and canonical column names. Translate them through the lo
 | Key | Value |
 |---|---|
 | `tables` | t1 (the vendor scorecard view), t3 (query-level metrics), t4 (tenant enablement), assignment (the current first-exposure source, for the cuts only, not the source that was retired in May 2026) |
-| `t1_columns` | the real T1 column names. Under `_percent_fields`, the relative fields that T1 stores as percents |
+| `t1_columns` | the real T1 column names. A value can be a SQL expression: a struct field, an array element, or `NULL` for a column that T1 does not have. Under `_percent_fields`, the relative fields that T1 stores as percents |
+| `prefer_cuped`, `prefer_sequential` | the T1 mode to read. T1 can have rows with CUPED on and off, and with sequential testing on and off. Kangaroo reads one mode. The default for sequential is on, because its intervals are wider. The report names the mode |
 | `t3_columns` | the T3 names of the columns that the cut templates use (`t.<name>` in `m1/cut_templates.json`) |
 | `assignment` | the unit, arm, experiment and first-exposure columns |
 | `split_count_metric` | the T1 metric that counts all exposed units. Without it, the sample split is UNKNOWN: the flight is directional, not blocked |

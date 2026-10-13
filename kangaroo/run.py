@@ -78,7 +78,8 @@ def run(experiment, overlay, warehouse, configs, out_dir, knowledge_dir=None, ca
 
     latest = warehouse.query(t1src.latest_sql(table, cols), {"experiment": name}, label="T1 latest snapshot")
     trace.receipt({k: latest[k] for k in ("statement_id", "label", "row_count", "sql_sha")}, "T1 latest snapshot", "scorecard")
-    sc = t1src.scorecard_from_rows(latest["rows"], cols, wh_cfg.get("prefer_cuped", True), wh_cfg.get("ci_level", 0.95))
+    sc = t1src.scorecard_from_rows(latest["rows"], cols, wh_cfg.get("prefer_cuped", True), wh_cfg.get("ci_level", 0.95),
+                                   wh_cfg.get("prefer_sequential", True))
     aliases = {k.lower(): v for k, v in (load_json(os.path.join(kdir, "metric_aliases.json"), {}) or {}).items()}
     read_as = sorted({(m["metric"], aliases[m["metric"].lower()]) for c in sc["comparisons"] for m in c["metrics"]
                       if m["metric"].lower() in aliases})
@@ -98,7 +99,8 @@ def run(experiment, overlay, warehouse, configs, out_dir, knowledge_dir=None, ca
     names = sorted({str(r["metric"]) for r in latest["rows"]})
     watched = list(dict.fromkeys(wanted + [n for n in names if any(n.lower().startswith(w.lower()) for w in wanted)]))
     series = warehouse.query(t1src.series_sql(table, cols), {"experiment": name, "metrics": watched}, label="T1 daily series")
-    series = {**series, "rows": [{**r, "metric": aliases.get(str(r["metric"]).lower(), r["metric"])} for r in series["rows"]]}
+    series = {**series, "rows": [{**r, "metric": aliases.get(str(r["metric"]).lower(), r["metric"])}
+                                 for r in t1src.same_mode(series["rows"], sc["analysis"])]}
     trace.receipt({k: series[k] for k in ("statement_id", "label", "row_count", "sql_sha")}, "T1 daily series", "data quality")
     trace.action({"kind": "query", "owner": "agent", "run_id": run_id, "pair": "all", "target_pattern": None,
                   "exact_next_task": "exposed units and primaries by day and arm (T1 series)", "diagnoses": ["M0-2", "M0-6"],
@@ -132,7 +134,9 @@ def run(experiment, overlay, warehouse, configs, out_dir, knowledge_dir=None, ca
     confirmed, drafts = cardlib.similar(cardlib.load(cards_dir), name, (cfg or {}).get("layer"), (cfg or {}).get("tags"),
                                         card["families_moved"])
     display = (cfg or {}).get("name") or name
-    provenance = (f"T1 snapshot {sc['analysis']['as_of']} ({latest['statement_id']}); config "
+    onoff = lambda v: {True: "on", False: "off"}.get(v, "not known")  # noqa: E731
+    provenance = (f"T1 snapshot {sc['analysis']['as_of']} ({latest['statement_id']}), with CUPED {onoff(sc['analysis']['cuped'])} "
+                  f"and sequential testing {onoff(sc['analysis']['sequential'])}; config "
                   f"{(cfg or {}).get('id') or 'not fetched'}; knowledge version {version[:12]}; code and settings version "
                   f"{code_version[:12]}; run {run_id}." + (" Read as approved aliases: " + "; ".join(f"'{a}' as '{b}'" for a, b in read_as) + "."
                                             if read_as else ""))
