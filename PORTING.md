@@ -37,9 +37,10 @@ The code uses T1 to T4 and canonical column names. Translate them through the lo
 |---|---|
 | `tables` | t1 (the vendor scorecard view), t3 (query-level metrics), t4 (tenant enablement), assignment (the current first-exposure source, for the cuts only, not the source that was retired in May 2026) |
 | `t1_columns` | the real T1 column names. A value can be a SQL expression: a struct field, an array element, or `NULL` for a column that T1 does not have. Under `_percent_fields`, the relative fields that T1 stores as percents |
-| `prefer_cuped`, `prefer_sequential` | the T1 mode to read. T1 can have rows with CUPED on and off, and with sequential testing on and off. Kangaroo reads one mode. The default for sequential is on, because its intervals are wider. The report names the mode |
-| `t3_columns` | the T3 names of the columns that the cut templates use (`t.<name>` in `m1/cut_templates.json`) |
-| `assignment` | the unit, arm, experiment and first-exposure columns |
+| `prefer_cuped`, `prefer_sequential` | the T1 mode to read. T1 can have rows with CUPED on and off, and with sequential testing on and off. Kangaroo reads one mode. The flight's config setting (`sequential`) wins. Without it, the default for sequential is on, because its intervals are wider. The report names the mode |
+| `t3_columns` | the T3 names of the columns that the cut templates use (`t.<name>` in `m1/cut_templates.json`). Map a column that T3 does not have to `null`. Its cuts become access gaps, and the dry run skips them |
+| `t3_values` | the T3 value for each value that a template uses, for example `{"surface_full": "<the T3 value>"}` |
+| `assignment` | the unit, arm, experiment and first-exposure columns, and `multi_arm`: the rule for a unit with rows in more than one arm. `first` (the default) keeps the arm of its first exposure. `exclude` removes the unit. Use the rule that makes a cut agree with T1 |
 | `split_count_metric` | the T1 metric that counts all exposed units. Without it, the sample split is UNKNOWN: the flight is directional, not blocked |
 | `approved` | the tables that the privacy gate approved. A table that is not approved makes its cuts access gaps, and the report says so |
 | `cohort` | the paying-tenant flag in T4 |

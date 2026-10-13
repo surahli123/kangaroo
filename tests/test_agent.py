@@ -240,6 +240,28 @@ class Flights(unittest.TestCase):
         t1 = wh.query("SELECT relative_delta FROM t1_scorecard WHERE experiment_name = :e AND ds = :d AND "
                       "metric_name = '1P Long Click Rate'", {"e": "synth-null", "d": as_of})["rows"][0]["relative_delta"]
         self.assertAlmostEqual(100 * res["metrics"][0]["rel_delta"], t1, places=6)
+        # Work differences stay in the overlay: a template's value maps to the warehouse's value, a column that the
+        # warehouse lacks makes the cut an access gap (and the dry run skips it), and a unit in two arms counts once.
+        cut = lambda templates, cfg: cuts.run_cut(wh, "same_as_t1", templates, {**wh_cfg, "cohort": None, **cfg},  # noqa: E731
+                                                  "synth-null", as_of, "control", ["test"], min_units=1)["metrics"][0]
+        renamed = {"same_as_t1": {**tpl["same_as_t1"], "filter": "t.experience = 'work_value'"}}
+        with self.assertRaisesRegex(cuts.AccessGap, "no column for long_click_1p"):
+            cut(tpl, {"t3_columns": {"long_click_1p": None}})
+        twins = ("(SELECT unit_id, experiment_name, group_name, first_exposure_date FROM exposures UNION ALL "
+                 "SELECT unit_id, experiment_name, CASE WHEN group_name = 'control' THEN 'test' ELSE 'control' END, "
+                 "DATE(first_exposure_date, '+1 day') FROM exposures WHERE unit_id LIKE '%7')")
+        crossed = {"tables": {**wh_cfg["tables"], "assignment": twins}, "t3_values": {"work_value": "surface_full"}}
+        first = cut(renamed, crossed)
+        self.assertAlmostEqual(100 * first["rel_delta"], t1, places=6)  # each unit in the arm of its first exposure
+        left_out = cut(renamed, {**crossed, "assignment": {**wh_cfg["assignment"], "multi_arm": "exclude"}})
+        self.assertLess(left_out["control_units"], first["control_units"])
+        dry_home = tempfile.mkdtemp(dir=STATE["tmp"])
+        api.init(dry_home)
+        overlay_file = os.path.join(dry_home, "overlay", "warehouse.json")
+        save(overlay_file, {**load(overlay_file), "t3_columns": {"typeahead_suggested": None}})
+        dry = api.dry_run(os.path.join(dry_home, "dry"), path=dry_home)
+        self.assertEqual(sorted(dry["skipped"]), ["nav_share", "ta_known_item_unauth"])
+        self.assertEqual(len(dry["files"]) + len(dry["skipped"]), len(cuts.load_templates()))
         sql = cuts.dry_run_sql(cuts.load_templates()["primary_by_exposure_day"], wh_cfg, "spark")
         bound, params = bind(sql, {"experiment": "it's", "as_of": "2026-01-14"}, "spark")
         self.assertIsNone(params)
@@ -505,6 +527,12 @@ class Session(unittest.TestCase):
             self.assertEqual((comparison["analysis"]["sequential"], comparison["comparisons"][0]["duplicates"]), (True, []))
             self.assertAlmostEqual(kept["rel_ci"][0], (original["relative_ci_lower"] - 1.0) / 100)  # the wider read
             self.assertEqual(len(load(os.path.join(both, "case", "series.json"))), len(load(os.path.join(base, "case", "series.json"))))
+            home = tempfile.mkdtemp(dir=STATE["tmp"])  # the flight's own setting in its config wins over the default
+            scorecard, registered = os.path.join(home, "both.json"), os.path.join(home, "config.json")
+            save(scorecard, rows + [wide(r) for r in rows])
+            save(registered, {**load(config_path("synth-3p-pin")), "sequential": False})
+            fixed = api.analyze(scorecard=scorecard, contract=contract_path("synth-3p-pin"), config=registered, path=home)["run_dir"]
+            self.assertIs(load(os.path.join(fixed, "case", "scorecard.json"))["analysis"]["sequential"], False)
         with self.subTest(case="without the exposed-user count, the vendor's balance check decides the split"):
             loss = [r for r in t1_rows("synth-split-loss") if r["metric_name"] != "Exposed Users"]
             self.assertEqual(self.analyze("synth-split-loss", loss)["counts"]["grades"], {"test": "not_permitted"})

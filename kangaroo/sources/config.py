@@ -5,7 +5,9 @@ Canonical config (what the rest of the agent reads):
      "start": "YYYY-MM-DD", "end": "YYYY-MM-DD" or None, "target_days": int or None,
      "control_group": group id, "hypothesis": text,
      "groups": [{"id", "name", "size", "parameters": {}}],
-     "health_checks": [{"name", "status": "PASSED" | "WARNING" | "FAILED"}]}
+     "health_checks": [{"name", "status": "PASSED" | "WARNING" | "FAILED"}],
+     "sequential": true or false, the flight's sequential-testing setting (optional; it wins over
+     the overlay's prefer_sequential)}
 
 - JsonDirConfig reads canonical files (the synthetic warehouse writes them).
 - CliConfig is the work config CLI. It runs only outside the sandbox; write `to_canonical`

@@ -17,7 +17,7 @@ import re
 from statistics import NormalDist
 
 from kangaroo import CUTS
-from kangaroo.sources.warehouse import QueryRefused
+from kangaroo.sources.warehouse import QueryRefused, literal
 
 Z = NormalDist().inv_cdf(0.975)
 
@@ -44,10 +44,36 @@ DAY_INDEX = {"sqlite": "CAST(julianday(t.{day}) - julianday(a.first_exposure) AS
              "spark": "DATEDIFF(t.{day}, a.first_exposure) + 1"}
 
 
+MULTI_ARM = {  # a unit with rows in more than one arm: keep its first exposure, or leave it out
+    "first": "SELECT a0.unit AS unit, MIN(a0.arm) AS arm, f.first_exposure AS first_exposure FROM a0 JOIN "
+             "(SELECT unit, MIN(first_exposure) AS first_exposure FROM a0 GROUP BY unit) f "
+             "ON a0.unit = f.unit AND a0.first_exposure = f.first_exposure GROUP BY a0.unit, f.first_exposure",
+    "exclude": "SELECT unit, MIN(arm) AS arm, MIN(first_exposure) AS first_exposure FROM a0 GROUP BY unit "
+               "HAVING COUNT(DISTINCT arm) = 1",
+}
+
+
+def missing_columns(tpl, wh_cfg):
+    """The template's T3 columns that the overlay maps to null: the work warehouse does not have them."""
+    t3c = wh_cfg.get("t3_columns") or {}
+    used = set(re.findall(r"\bt\.(\w+)", " ".join(str(tpl.get(k) or "") for k in ("filter", "x", "y"))))
+    used |= {"user_id", "day"} | ({"tenant_id"} if wh_cfg.get("cohort") else set())
+    return sorted(c for c in used if c in t3c and t3c[c] is None)
+
+
 def build_sql(tpl, wh_cfg, dialect="sqlite"):
     tables, assign = wh_cfg["tables"], wh_cfg["assignment"]
-    t3c = wh_cfg.get("t3_columns") or {}
-    col = lambda expr: re.sub(r"\bt\.(\w+)", lambda m: "t." + t3c.get(m.group(1), m.group(1)), expr)  # noqa: E731
+    missing = missing_columns(tpl, wh_cfg)
+    if missing:
+        raise AccessGap(f"the warehouse has no column for {', '.join(missing)}")
+    rule = assign.get("multi_arm", "first")
+    if rule not in MULTI_ARM:
+        raise ValueError(f"assignment.multi_arm must be one of {', '.join(MULTI_ARM)}, not {rule!r}")
+    t3c, values = wh_cfg.get("t3_columns") or {}, wh_cfg.get("t3_values") or {}
+    # t3_values maps a value that a template uses ('surface_full') to the work warehouse's value.
+    lit = lambda expr: re.sub(r"'((?:[^']|'')*)'", lambda m: literal(values[m.group(1)]) if m.group(1) in values else m.group(0),  # noqa: E731
+                              expr)
+    col = lambda expr: re.sub(r"\bt\.(\w+)", lambda m: "t." + t3c.get(m.group(1), m.group(1)), lit(expr))  # noqa: E731
     unit, day, tenant = (t3c.get(c, c) for c in ("user_id", "day", "tenant_id"))
     cohort = wh_cfg.get("cohort")
     cohort_join = (f" JOIN {tables['t4']} c ON t.{tenant} = c.{cohort['tenant']} AND c.{cohort['flag']} = 1" if cohort else "")
@@ -55,8 +81,8 @@ def build_sql(tpl, wh_cfg, dialect="sqlite"):
     series = bool(tpl.get("series"))
     k_col = f", {DAY_INDEX[dialect].format(day=day)} AS k" if series else ""
     k_key = ", k" if series else ""
-    return (f"WITH a AS (SELECT {assign['unit']} AS unit, {assign['group']} AS arm, {assign['first_exposure']} AS first_exposure "
-            f"FROM {tables['assignment']} WHERE {assign['experiment']} = :experiment), "
+    return (f"WITH a0 AS (SELECT {assign['unit']} AS unit, {assign['group']} AS arm, {assign['first_exposure']} AS first_exposure "
+            f"FROM {tables['assignment']} WHERE {assign['experiment']} = :experiment), a AS ({MULTI_ARM[rule]}), "
             f"q AS (SELECT a.arm AS arm, t.{unit} AS unit, {col(tpl['x'])} AS x, {col(tpl['y'])} AS y{k_col} "
             f"FROM {tables['t3']} t JOIN a ON t.{unit} = a.unit{cohort_join} "
             f"WHERE t.{day} >= a.first_exposure AND t.{day} <= :as_of AND {col(tpl['filter'])}), "

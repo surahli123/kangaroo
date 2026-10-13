@@ -429,6 +429,12 @@ def main(argv=None):
             json.dump(contract_for(flight), handle, indent=1)
         gold[flight["name"]] = {**flight["gold"], "config_id": None if flight.get("no_config") else config["id"],
                                 "as_of_day": flight["as_of_day"], "days": flight["days"]}
+    # Indexes for SQLite only (the work warehouse needs none): without them each cut builds a temporary index on T3.
+    db.executescript("""
+        CREATE INDEX ix_t1 ON t1_scorecard (experiment_name, ds);
+        CREATE INDEX ix_exposures ON exposures (experiment_name, unit_id);
+        CREATE INDEX ix_t3_user ON t3_queries (user_id);
+    """)
     db.commit()
     db.close()
     with open(os.path.join(args.out, "gold.json"), "w") as handle:

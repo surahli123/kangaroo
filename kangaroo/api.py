@@ -169,16 +169,23 @@ def dry_run(out, path=None):
     init(h)
     wh_cfg = _load(os.path.join(d["overlay"], "warehouse.json"))
     os.makedirs(out, exist_ok=True)
-    written = []
+    written, skipped = [], {}
     for tid, tpl in sorted(cutlib.load_templates(d["knowledge"]).items()):
+        try:
+            sql = cutlib.dry_run_sql(tpl, wh_cfg, wh_cfg.get("dialect", "spark"))
+        except cutlib.AccessGap as gap:  # a column that the overlay maps to null: the cut stays an access gap
+            skipped[tid] = str(gap)
+            continue
         target = os.path.join(out, f"{tid}.sql")
         with open(target, "w", encoding="utf-8") as handle:
-            sql = cutlib.dry_run_sql(tpl, wh_cfg, wh_cfg.get("dialect", "spark"))
             finished = bind(sql, {"experiment": "__dry_run__", "as_of": "1970-01-01"}, "spark")[0]  # LIMIT 0: no rows
             handle.write(finished + "\n")
         written.append(target)
-    return {"files": written, "text": f"{len(written)} dry-run statements in {out}. Run each one with the warehouse tool. "
-                                      "Each must compile and return no rows."}
+    text = (f"{len(written)} dry-run statements in {out}. Run each one with the warehouse tool. "
+            "Each must compile and return no rows.")
+    if skipped:
+        text += " Not written: " + "; ".join(f"{t} ({why})" for t, why in skipped.items()) + "."
+    return {"files": written, "skipped": skipped, "text": text}
 
 
 def check_report(run="latest", path=None):

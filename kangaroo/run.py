@@ -78,8 +78,9 @@ def run(experiment, overlay, warehouse, configs, out_dir, knowledge_dir=None, ca
 
     latest = warehouse.query(t1src.latest_sql(table, cols), {"experiment": name}, label="T1 latest snapshot")
     trace.receipt({k: latest[k] for k in ("statement_id", "label", "row_count", "sql_sha")}, "T1 latest snapshot", "scorecard")
+    registered = (cfg or {}).get("sequential")  # the flight's own setting wins over the overlay's default
     sc = t1src.scorecard_from_rows(latest["rows"], cols, wh_cfg.get("prefer_cuped", True), wh_cfg.get("ci_level", 0.95),
-                                   wh_cfg.get("prefer_sequential", True))
+                                   wh_cfg.get("prefer_sequential", True) if registered is None else registered)
     aliases = {k.lower(): v for k, v in (load_json(os.path.join(kdir, "metric_aliases.json"), {}) or {}).items()}
     read_as = sorted({(m["metric"], aliases[m["metric"].lower()]) for c in sc["comparisons"] for m in c["metrics"]
                       if m["metric"].lower() in aliases})
