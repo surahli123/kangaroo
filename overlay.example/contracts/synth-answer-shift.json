@@ -1,0 +1,43 @@
+{
+ "experiment_id": "synth-answer-shift",
+ "name": "Answer panel on more queries",
+ "design": "ab",
+ "confirmed": true,
+ "ci_level": 0.95,
+ "hypothesis": "Showing answers on more queries raises answer success.",
+ "primaries": {
+  "rule": "any",
+  "metrics": [
+   {
+    "metric": "Answer Success Rate",
+    "direction": "increase",
+    "bar": 0.01
+   },
+   {
+    "metric": "Search Success Rate",
+    "direction": "increase",
+    "bar": 0.005
+   }
+  ]
+ },
+ "guardrails": [
+  {
+   "metric": "Latency Mean (ms)",
+   "direction": "decrease",
+   "margin": 0.02
+  },
+  {
+   "metric": "1P Long Click Rate",
+   "direction": "increase",
+   "margin": 0.02
+  }
+ ],
+ "intended_params": [
+  "answer_threshold"
+ ],
+ "feature_metrics": [
+  "Answer Shown Rate"
+ ],
+ "explanations": [],
+ "pre_period": {}
+}

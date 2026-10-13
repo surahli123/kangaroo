@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "kangaroo": {
+      "command": "python3",
+      "args": ["${CLAUDE_PLUGIN_ROOT:-.}/bin/kangaroo", "mcp"]
+    }
+  }
+}

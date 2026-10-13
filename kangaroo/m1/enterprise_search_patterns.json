@@ -1,0 +1,650 @@
+{
+ "_note": "Enterprise search pattern library for the search experiment agent: one search box over first-party (1P) content and third-party (3P) connector content, a typeahead dropdown before Enter, a full results page after Enter, and an answer panel. Families map metric names; at work, metric_families.json in the overlay maps the team's names exactly. Deep dives with 'sql' name a cut template the agent can run; 'needs' and confirms_when / refutes_when let explain.py score the result. A candidate is confirmed only when a cut finds the effect where the mechanism acts AND its control cut (role 'control') shows what the usual look-alikes would not: the effect absent where the mechanism can't act, or present in a group a look-alike can't reach. One agreeing cut alone makes it 'fits a cut'. A control cut with relative_to is read against the reference effect: 'absent' confirms when its interval rules out that share of the reference change; 'present' refutes when it does.",
+ "families": {
+  "success": {
+   "match": [
+    "^search success rate$",
+    "query success rate$"
+   ],
+   "exclude": [
+    "weighted",
+    "answer"
+   ],
+   "good": "increase",
+   "practical": 0.003
+  },
+  "success_weighted": {
+   "match": [
+    "success rate, position weighted",
+    "weighted success"
+   ],
+   "exclude": [],
+   "good": "increase",
+   "practical": 0.003
+  },
+  "answer_success": {
+   "match": [
+    "^answer success"
+   ],
+   "exclude": [],
+   "good": "increase",
+   "practical": 0.01
+  },
+  "answer_shown": {
+   "match": [
+    "answer shown"
+   ],
+   "exclude": [],
+   "good": null,
+   "practical": 0.02
+  },
+  "p3_placement": {
+   "match": [
+    "^3p top ?1",
+    "3p top1 share"
+   ],
+   "exclude": [],
+   "good": null,
+   "practical": 0.02
+  },
+  "p3_clicks": {
+   "match": [
+    "^3p clicks per query$"
+   ],
+   "exclude": [],
+   "good": "increase",
+   "practical": 0.02
+  },
+  "p3_clicks_auth": {
+   "match": [
+    "^3p clicks per authorized"
+   ],
+   "exclude": [],
+   "good": "increase",
+   "practical": 0.02
+  },
+  "authorized_share": {
+   "match": [
+    "^authorized query share"
+   ],
+   "exclude": [],
+   "good": null,
+   "practical": 0.01
+  },
+  "p1_binary_ctr": {
+   "match": [
+    "^1p binary ctr$",
+    "binary ctr$"
+   ],
+   "exclude": [
+    "3p"
+   ],
+   "good": "increase",
+   "practical": 0.005
+  },
+  "p1_long_click": {
+   "match": [
+    "^1p long click rate$"
+   ],
+   "exclude": [],
+   "good": "increase",
+   "practical": 0.005
+  },
+  "typeahead_ctr": {
+   "match": [
+    "^typeahead ctr"
+   ],
+   "exclude": [],
+   "good": "increase",
+   "practical": 0.01
+  },
+  "fp_queries_per_user": {
+   "match": [
+    "^full-page queries per user$"
+   ],
+   "exclude": [],
+   "good": null,
+   "practical": 0.01
+  },
+  "latency": {
+   "match": [
+    "latency"
+   ],
+   "exclude": [],
+   "good": "decrease",
+   "practical": 0.01
+  },
+  "p1_long_on_eligible": {
+   "match": [
+    "^1p long-click share, 3p-eligible"
+   ],
+   "exclude": [],
+   "good": "increase",
+   "practical": 0.005
+  },
+  "p1_long_on_ineligible": {
+   "match": [
+    "^1p long-click share, 3p-ineligible"
+   ],
+   "exclude": [],
+   "good": "increase",
+   "practical": 0.005
+  },
+  "any_success_eligible": {
+   "match": [
+    "^any-source success, 3p-eligible"
+   ],
+   "exclude": [],
+   "good": "increase",
+   "practical": 0.003
+  },
+  "nav_share_full_page": {
+   "match": [
+    "^known-item share of full-page queries"
+   ],
+   "exclude": [],
+   "good": null,
+   "practical": 0.01
+  },
+  "answer_no_click_share": {
+   "match": [
+    "^answered without a 1p click"
+   ],
+   "exclude": [],
+   "good": null,
+   "practical": 0.01
+  },
+  "queries_per_authorized_user": {
+   "match": [
+    "^full-page queries per authorized user"
+   ],
+   "exclude": [],
+   "good": null,
+   "practical": 0.01
+  },
+  "full_page_share": {
+   "match": [
+    "^full-page share of queries"
+   ],
+   "exclude": [],
+   "good": null,
+   "practical": 0.01,
+   "_why": "the guard counts the full-page share as moved only at 1% or more of itself: a smaller shift in the query mix can't bias a full-page ratio by more than a fraction of that"
+  },
+  "queries_per_unauthorized_user": {
+   "match": [
+    "^full-page queries per user without connected apps"
+   ],
+   "exclude": [],
+   "good": null,
+   "practical": 0.01
+  },
+  "ta_known_item_unauth": {
+   "match": [
+    "^typeahead resolution of known-item queries, users without connected apps"
+   ],
+   "exclude": [],
+   "good": "increase",
+   "practical": 0.01
+  },
+  "p1_long_no_answer": {
+   "match": [
+    "^1p long-click share, full-page queries with no answer"
+   ],
+   "exclude": [],
+   "good": "increase",
+   "practical": 0.005
+  }
+ },
+ "ratios": {
+  "p3_clicks_auth": {
+   "numerator": "p3_clicks",
+   "denominator": "authorized_share"
+  }
+ },
+ "presentation_params": "snippet|title|thumbnail|layout|\\bui\\b|render|card|font|color|image|answer_threshold",
+ "segment_dimensions": {
+  "surface": [
+   "typeahead",
+   "full page",
+   "answer"
+  ],
+  "authorization": [
+   "authorized",
+   "not authorized"
+  ],
+  "eligibility": [
+   "3p-eligible",
+   "3p-ineligible"
+  ],
+  "intent": [
+   "known-item",
+   "informational",
+   "people"
+  ],
+  "tenant size": [
+   "large tenants",
+   "small tenants"
+  ]
+ },
+ "patterns": [
+  {
+   "id": "first_party_displaced",
+   "name": "3P results push 1P results down",
+   "when": {
+    "p3_placement": "up"
+   },
+   "strengthened_by": {
+    "p1_long_click": "down",
+    "p1_binary_ctr": "down",
+    "p3_clicks": "up",
+    "success": "flat_or_down",
+    "success_weighted": "down"
+   },
+   "contradicted_by": {
+    "p1_long_click": "up"
+   },
+   "mechanism": "3P results moved into top positions that 1P results held, so 1P clicks fall where 3P clicks rise, and total success moves little.",
+   "reading": "mixed",
+   "source": "Dmitriev et al., A Dirty Dozen, KDD 2017 (clicks shift between page elements); zero-sum first page in federated search",
+   "deep_dives": [
+    {
+     "cut": "1P long-click share on 3P-eligible queries, by arm",
+     "sql": "p1_long_eligible",
+     "confirms": "the 1P loss sits on queries that had a 3P candidate",
+     "refutes": "1P long clicks hold on those queries",
+     "needs": {
+      "metric": "p1_long_on_eligible"
+     },
+     "confirms_when": {
+      "p1_long_on_eligible": "down"
+     },
+     "refutes_when": {
+      "p1_long_on_eligible": "up_or_flat"
+     }
+    },
+    {
+     "cut": "1P long-click share on queries with no 3P candidate, by arm",
+     "sql": "p1_long_ineligible",
+     "confirms": "queries the boost can't touch are unchanged",
+     "refutes": "they lose 1P clicks too (the cause is elsewhere)",
+     "needs": {
+      "metric": "p1_long_on_ineligible"
+     },
+     "confirms_when": {
+      "p1_long_on_ineligible": "flat"
+     },
+     "refutes_when": {
+      "p1_long_on_ineligible": "down"
+     },
+     "role": "control",
+     "relative_to": {
+      "family": "p1_long_on_eligible",
+      "share": 0.5,
+      "expect": "absent"
+     }
+    },
+    {
+     "cut": "rank of the first 1P long click, by arm",
+     "confirms": "1P long clicks move from rank 1 to rank 2",
+     "refutes": "the rank of the first 1P long click is unchanged"
+    },
+    {
+     "cut": "per-tenant concentration of the 1P loss",
+     "confirms": "the loss spreads across tenants",
+     "refutes": "one or two large tenants carry it"
+    }
+   ],
+   "owner_question": "Are more 3P clicks worth fewer 1P clicks on the same queries?"
+  },
+  {
+   "id": "substitution_on_successful",
+   "name": "3P clicks replace success instead of adding to it",
+   "when": {
+    "p3_clicks": "up"
+   },
+   "strengthened_by": {
+    "success": "flat_or_down"
+   },
+   "contradicted_by": {
+    "success": "up"
+   },
+   "mechanism": "The extra 3P clicks land on queries that already ended in a success, so 3P clicks rise and success doesn't.",
+   "reading": "neutral",
+   "source": "Hassan et al., CIKM 2013 (clicks are not satisfaction)",
+   "deep_dives": [
+    {
+     "cut": "any-source success share on 3P-eligible queries, by arm",
+     "sql": "success_eligible",
+     "confirms": "success holds (inside its band) where 3P clicks rose",
+     "refutes": "success rises on those queries",
+     "needs": {
+      "metric": "any_success_eligible"
+     },
+     "confirms_when": {
+      "any_success_eligible": "flat"
+     },
+     "refutes_when": {
+      "any_success_eligible": "up"
+     }
+    }
+   ],
+   "owner_question": "If the extra 3P clicks don't add success, what does the change buy?"
+  },
+  {
+   "id": "typeahead_funnel",
+   "name": "Typeahead misses send known-item queries to the full page",
+   "when": {
+    "typeahead_ctr": "down"
+   },
+   "any_of": {
+    "fp_queries_per_user": "up"
+   },
+   "strengthened_by": {
+    "p1_long_click": "up_or_flat",
+    "success": "up_or_flat",
+    "answer_shown": "down"
+   },
+   "contradicted_by": {
+    "fp_queries_per_user": "down"
+   },
+   "mechanism": "Typeahead resolves fewer known-item queries, so more of them reach the full results page. Full-page metrics change because the query mix changed, not because full-page results did.",
+   "reading": "bad",
+   "source": "funnel between surfaces; Kohavi et al., KDD 2012 (metrics that move for the wrong reason)",
+   "deep_dives": [
+    {
+     "cut": "known-item share of full-page queries, by arm",
+     "sql": "nav_share",
+     "confirms": "more of the full-page queries are known-item queries",
+     "refutes": "the full-page query mix is unchanged",
+     "needs": {
+      "metric": "nav_share_full_page"
+     },
+     "confirms_when": {
+      "nav_share_full_page": "up"
+     },
+     "refutes_when": {
+      "nav_share_full_page": "flat_or_down"
+     }
+    },
+    {
+     "cut": "typeahead resolution of known-item queries for users without connected apps, by arm",
+     "sql": "ta_known_item_unauth",
+     "role": "control",
+     "confirms": "typeahead resolves fewer known-item queries for everyone, not only for users with connected apps",
+     "refutes": "it holds for users without connected apps (the drop comes from one group's extra queries)",
+     "needs": {
+      "metric": "ta_known_item_unauth"
+     },
+     "confirms_when": {
+      "ta_known_item_unauth": "down"
+     },
+     "refutes_when": {
+      "ta_known_item_unauth": "up_or_flat"
+     },
+     "relative_to": {
+      "family": "typeahead_ctr",
+      "share": 0.5,
+      "expect": "present"
+     }
+    },
+    {
+     "cut": "full-page share of all queries, by arm",
+     "sql": "full_page_share",
+     "confirms": "a larger share of queries reaches the full page",
+     "refutes": "the share reaching the full page is unchanged",
+     "needs": {
+      "metric": "full_page_share"
+     },
+     "refutes_when": {
+      "full_page_share": "flat_or_down"
+     }
+    }
+   ],
+   "owner_question": "Typeahead now finds fewer known items; what does the new model gain in return?"
+  },
+  {
+   "id": "answer_substitution",
+   "name": "Answers replace 1P clicks",
+   "when": {
+    "answer_shown": "up"
+   },
+   "any_of": {
+    "p1_binary_ctr": "down",
+    "p1_long_click": "down"
+   },
+   "strengthened_by": {
+    "success": "up_or_flat"
+   },
+   "contradicted_by": {
+    "success": "down"
+   },
+   "mechanism": "The answer panel shows on more queries and answers some of them, so users click 1P results less; success counts answers, so it holds or rises.",
+   "reading": "mixed",
+   "source": "Li et al., SIGIR 2009 (good abandonment); Chuklin and Serdyukov, SIGIR 2012",
+   "deep_dives": [
+    {
+     "cut": "share of full-page queries answered without a 1P click, by arm",
+     "sql": "answer_no_click",
+     "confirms": "more queries end with an answer and no click",
+     "refutes": "answered-without-click queries are flat",
+     "needs": {
+      "metric": "answer_no_click_share"
+     },
+     "confirms_when": {
+      "answer_no_click_share": "up"
+     },
+     "refutes_when": {
+      "answer_no_click_share": "flat_or_down"
+     }
+    },
+    {
+     "cut": "1P long-click share on full-page queries with no answer shown, by arm",
+     "sql": "p1_long_no_answer",
+     "role": "control",
+     "confirms": "queries with no answer keep their 1P long clicks",
+     "refutes": "they lose 1P long clicks too (the cause is elsewhere)",
+     "needs": {
+      "metric": "p1_long_no_answer"
+     },
+     "confirms_when": {
+      "p1_long_no_answer": "up_or_flat"
+     },
+     "refutes_when": {
+      "p1_long_no_answer": "down"
+     },
+     "relative_to": {
+      "family": "p1_long_click",
+      "share": 0.5,
+      "expect": "absent"
+     }
+    }
+   ],
+   "owner_question": "Are answers a good replacement for the 1P clicks they take?"
+  },
+  {
+   "id": "authorized_struggle",
+   "name": "Users with connected apps search again and succeed less",
+   "when": {
+    "fp_queries_per_user": "up",
+    "success": "down"
+   },
+   "strengthened_by": {
+    "authorized_share": "up",
+    "p1_long_click": "down"
+   },
+   "contradicted_by": {
+    "success": "up"
+   },
+   "mechanism": "Users with authorized 3P apps issue more full-page queries that end without success, which raises query volume and lowers success.",
+   "reading": "bad",
+   "source": "Hassan et al., WSDM 2013 (struggling searchers); Song et al., WWW 2013",
+   "deep_dives": [
+    {
+     "cut": "full-page queries per authorized user, by arm",
+     "sql": "auth_queries",
+     "confirms": "authorized users search more",
+     "refutes": "authorized users search as often as before",
+     "needs": {
+      "metric": "queries_per_authorized_user"
+     },
+     "confirms_when": {
+      "queries_per_authorized_user": "up"
+     },
+     "refutes_when": {
+      "queries_per_authorized_user": "flat_or_down"
+     }
+    },
+    {
+     "cut": "full-page queries per user without connected apps, by arm",
+     "sql": "unauth_queries",
+     "role": "control",
+     "confirms": "users without connected apps search as often as before",
+     "refutes": "they search more too (the cause isn't the connected apps)",
+     "needs": {
+      "metric": "queries_per_unauthorized_user"
+     },
+     "confirms_when": {
+      "queries_per_unauthorized_user": "flat"
+     },
+     "refutes_when": {
+      "queries_per_unauthorized_user": "up"
+     },
+     "relative_to": {
+      "family": "queries_per_authorized_user",
+      "share": 0.5,
+      "expect": "absent"
+     }
+    }
+   ],
+   "owner_question": "Why do users with connected apps search again more, and is the change the cause?"
+  },
+  {
+   "id": "speed_cost",
+   "name": "Slower results cost engagement",
+   "when": {
+    "latency": "up"
+   },
+   "strengthened_by": {
+    "success": "flat_or_down",
+    "p1_long_click": "flat_or_down"
+   },
+   "contradicted_by": {},
+   "mechanism": "The treatment serves results more slowly, and slower pages lose clicks and raise abandonment, which can hide a relevance gain. Speed effects tend to grow over weeks rather than fade.",
+   "deep_dives": [
+    {
+     "cut": "success and 1P long clicks by latency bucket, per arm",
+     "confirms": "the loss sits in the slow buckets",
+     "refutes": "the loss is flat across latency buckets"
+    }
+   ],
+   "reading": "bad",
+   "source": "Brutlag, Google, 2009 (400 ms delay: -0.44% searches in weeks 1-3, -0.76% in weeks 4-6, still -0.21% after removal); Dmitriev et al., A Dirty Dozen: Twelve Common Metric Interpretation Pitfalls, KDD 2017 (latency moved by page mix)",
+   "owner_question": "Is the latency cost worth what the change gains?"
+  },
+  {
+   "id": "denominator_driven",
+   "name": "A ratio moved because its denominator moved",
+   "kind": "ratio",
+   "mechanism": "{ratio} moved because {denominator} moved ({denominator_change}), not because {numerator} changed; the ratio's story is about volume, not quality.",
+   "deep_dives": [
+    {
+     "cut": "{numerator} and {denominator} per user, side by side",
+     "confirms": "the denominator carries the change",
+     "refutes": "the numerator moves too"
+    },
+    {
+     "cut": "what changed the {denominator} (query volume, sessions, logging of searches)",
+     "confirms": "a volume or logging change explains it",
+     "refutes": "volume is steady"
+    },
+    {
+     "cut": "the same clicks over the finest denominator that doesn't move itself (for example clicks per session)",
+     "confirms": "the effect disappears on a stable denominator",
+     "refutes": "the effect holds on a stable denominator"
+    }
+   ],
+   "reading": "neutral",
+   "source": "Dmitriev et al., A Dirty Dozen: Twelve Common Metric Interpretation Pitfalls, KDD 2017 (module CTR -40% while clicks +74% and impressions +200%)"
+  },
+  {
+   "id": "concentrated_segment",
+   "name": "The effect sits in one segment",
+   "kind": "segment",
+   "mechanism": "{metric}'s change comes mostly from {segment} ({share} of the overall change), and segments differ more than noise allows.",
+   "deep_dives": [
+    {
+     "cut": "{metric} for {segment} vs the rest, with triggered queries only",
+     "confirms": "the change is real and confined to {segment}",
+     "refutes": "the other segments move too once diluted traffic is removed"
+    },
+    {
+     "cut": "what the treatment changes for {segment} (ranking features, coverage, rendering)",
+     "confirms": "a mechanism specific to {segment}",
+     "refutes": "nothing in the change targets {segment}"
+    },
+    {
+     "cut": "sample split and event logging within {segment}, by arm",
+     "confirms": "the segment is balanced and logs the same way",
+     "refutes": "the segment itself is imbalanced or logs differently (an artifact)"
+    }
+   ],
+   "reading": "neutral",
+   "source": "Dmitriev et al., A Dirty Dozen: Twelve Common Metric Interpretation Pitfalls, KDD 2017 (effects confined to a country, browser or version); tail-query lifts reported for semantic retrieval (snippet-level)"
+  },
+  {
+   "id": "novelty",
+   "name": "The effect is fading",
+   "kind": "check",
+   "check": "novelty",
+   "mechanism": "The effect shrinks with each day users have had the treatment, so the long-run effect is likely smaller than the average. UI changes tend to fade; ranking, speed and ad-load effects tend to grow, so a fading ranking effect deserves a second look.",
+   "deep_dives": [
+    {
+     "cut": "effect by days since first exposure, per weekly cohort",
+     "confirms": "every cohort fades the same way",
+     "refutes": "late cohorts start lower (cohort mix, not novelty)"
+    },
+    {
+     "cut": "new vs returning users",
+     "confirms": "returning users fade",
+     "refutes": "only new users differ"
+    }
+   ],
+   "reading": "bad",
+   "source": "Song, Shi, Fu, WWW 2013; Brutlag 2009; Hohnhold, O'Brien, Tang, KDD 2015 (ads blindness grows over months)"
+  },
+  {
+   "id": "artifact",
+   "name": "A data or logging problem, not user behaviour",
+   "kind": "check",
+   "check": "sample_split|config_params|config_edits|scorecard|pre_period|invariant",
+   "mechanism": "A validity check flagged the data itself, so the movements may reflect logging, assignment or export problems rather than users.",
+   "deep_dives": [
+    {
+     "cut": "event counts per user by arm for every logged event the change could touch",
+     "confirms": "one arm logs differently",
+     "refutes": "logging is identical"
+    },
+    {
+     "cut": "exposure counts by day, platform and browser",
+     "confirms": "the imbalance sits in one slice",
+     "refutes": "the imbalance is everywhere (assignment problem)"
+    },
+    {
+     "cut": "client-logged vs server-logged versions of the same metric, by arm",
+     "confirms": "only client events move (telemetry loss differs by arm)",
+     "refutes": "client and server agree"
+    },
+    {
+     "cut": "share of users removed by bot and spam filters, by arm",
+     "confirms": "filters remove different shares in each arm",
+     "refutes": "filter rates match"
+    }
+   ],
+   "reading": "bad",
+   "source": "Dmitriev et al., A Dirty Dozen: Twelve Common Metric Interpretation Pitfalls, KDD 2017 (telemetry loss in one arm, bot filters hitting engaged users, metric-level sample ratio mismatch)"
+  }
+ ],
+ "_sources": "Base kinds (ratio, segment, check) copied from skills/ds-experiment/references/search_patterns.json; enterprise patterns from the Fable enterprise-search review (2026-10-13).",
+ "confirm_needs_control": true
+}

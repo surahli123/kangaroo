@@ -1,0 +1,86 @@
+{
+ "_note": "Cut templates are data the owner DS reviews; the runner (cuts.py) is fixed. Each produces one metric per arm: a ratio of sums over users (x over y), compared with control by a delta-method interval clustered by user. Columns are written as t.<name> with the synthetic names; the overlay's t3_columns renames them at work. surface_shift_is_the_question marks a per-user count, or a cut whose question is the surface shift itself; the full-page guard doesn't apply to it.",
+ "p1_long_eligible": {
+  "produces": "1P long-click share, 3P-eligible queries",
+  "filter": "t.experience = 'surface_full' AND t.eligible_3p = 1",
+  "x": "t.long_click_1p",
+  "y": "1",
+  "full_page": true
+ },
+ "p1_long_ineligible": {
+  "produces": "1P long-click share, 3P-ineligible queries",
+  "filter": "t.experience = 'surface_full' AND t.eligible_3p = 0",
+  "x": "t.long_click_1p",
+  "y": "1",
+  "full_page": true
+ },
+ "success_eligible": {
+  "produces": "Any-source success, 3P-eligible queries",
+  "filter": "t.experience = 'surface_full' AND t.eligible_3p = 1",
+  "x": "t.success_flag_1",
+  "y": "1",
+  "full_page": true
+ },
+ "nav_share": {
+  "produces": "Known-item share of full-page queries",
+  "filter": "t.experience = 'surface_full'",
+  "x": "t.typeahead_suggested",
+  "y": "1",
+  "full_page": true,
+  "surface_shift_is_the_question": true
+ },
+ "full_page_share": {
+  "produces": "Full-page share of queries",
+  "filter": "1 = 1",
+  "x": "CASE WHEN t.experience = 'surface_full' THEN 1 ELSE 0 END",
+  "y": "1",
+  "full_page": false
+ },
+ "answer_no_click": {
+  "produces": "Answered without a 1P click, share of full-page queries",
+  "filter": "t.experience = 'surface_full'",
+  "x": "CASE WHEN t.answer_success = 1 AND t.any_click_1p = 0 THEN 1 ELSE 0 END",
+  "y": "1",
+  "full_page": true
+ },
+ "auth_queries": {
+  "produces": "Full-page queries per authorized user",
+  "filter": "t.experience = 'surface_full' AND t.authorized_3p = 1",
+  "x": "1",
+  "y": "1",
+  "y_per_user": "max",
+  "full_page": true,
+  "surface_shift_is_the_question": true
+ },
+ "primary_by_exposure_day": {
+  "produces": "Search Success Rate by days since first exposure",
+  "filter": "t.experience = 'surface_full'",
+  "x": "t.success_flag_1",
+  "y": "1",
+  "series": true,
+  "full_page": true
+ },
+ "unauth_queries": {
+  "produces": "Full-page queries per user without connected apps",
+  "filter": "t.experience = 'surface_full' AND t.authorized_3p = 0",
+  "x": "1",
+  "y": "1",
+  "y_per_user": "max",
+  "full_page": true,
+  "surface_shift_is_the_question": true
+ },
+ "ta_known_item_unauth": {
+  "produces": "Typeahead resolution of known-item queries, users without connected apps",
+  "filter": "t.typeahead_suggested = 1 AND t.authorized_3p = 0",
+  "x": "t.ta_click",
+  "y": "1",
+  "full_page": false
+ },
+ "p1_long_no_answer": {
+  "produces": "1P long-click share, full-page queries with no answer",
+  "filter": "t.experience = 'surface_full' AND t.answer_shown = 0",
+  "x": "t.long_click_1p",
+  "y": "1",
+  "full_page": true
+ }
+}

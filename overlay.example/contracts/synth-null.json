@@ -1,0 +1,51 @@
+{
+ "experiment_id": "synth-null",
+ "name": "Ranking feature cleanup",
+ "design": "ab",
+ "confirmed": true,
+ "ci_level": 0.95,
+ "hypothesis": "Removing an unused feature changes nothing.",
+ "primaries": {
+  "rule": "any",
+  "metrics": [
+   {
+    "metric": "Search Success Rate",
+    "direction": "increase",
+    "bar": 0.005
+   },
+   {
+    "metric": "Search Success Rate, Position Weighted",
+    "direction": "increase",
+    "bar": 0.005
+   },
+   {
+    "metric": "3P Clicks Per Authorized Query",
+    "direction": "increase",
+    "bar": 0.01
+   },
+   {
+    "metric": "Answer Success Rate",
+    "direction": "increase",
+    "bar": 0.01
+   }
+  ]
+ },
+ "guardrails": [
+  {
+   "metric": "Latency Mean (ms)",
+   "direction": "decrease",
+   "margin": 0.02
+  },
+  {
+   "metric": "1P Long Click Rate",
+   "direction": "increase",
+   "margin": 0.02
+  }
+ ],
+ "intended_params": [
+  "features"
+ ],
+ "feature_metrics": [],
+ "explanations": [],
+ "pre_period": {}
+}

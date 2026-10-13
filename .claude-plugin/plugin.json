@@ -1,0 +1,10 @@
+{
+  "name": "kangaroo",
+  "version": "0.1.0",
+  "description": "Search experiment analysis in a chat: from a scorecard, whether the experiment can go to triage, why its metrics moved and what to check next, with a reviewed learning loop.",
+  "author": {
+    "name": "surahli123"
+  },
+  "license": "MIT",
+  "keywords": ["experiments", "search", "a/b testing", "triage"]
+}

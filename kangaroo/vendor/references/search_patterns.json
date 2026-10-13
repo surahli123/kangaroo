@@ -1,0 +1,965 @@
+{
+ "_note": "Search metric co-movement patterns. Each maps a signature in the scorecard to a candidate mechanism and the cuts that would confirm or refute it. States are physical (up, down, flat, unknown), judged against each family's practical band: flat means the interval sits inside the band, unknown means it is too wide to tell. A cut with confirms_when/refutes_when is scored by script from evidence.json; others need an explicit outcome. 'reading' says whether a mechanism makes the movement good, bad, mixed or neutral news. Extend or override in the overlay (patterns.json); company metric names belong in the overlay's metric_families.json.",
+ "families": {
+  "success": {
+   "match": [
+    "successful search",
+    "\\bsearch success",
+    "^success rate",
+    "session success",
+    "\\bsat rate"
+   ],
+   "exclude": [
+    "dissatisf",
+    "\\bunsat",
+    "\\bdsat",
+    "checkout",
+    "login",
+    "\\bsat click"
+   ],
+   "good": "increase",
+   "practical": 0.003
+  },
+  "dissatisfaction": {
+   "match": [
+    "dissatisf",
+    "\\bdsat\\b",
+    "\\bunsat"
+   ],
+   "exclude": [],
+   "good": "decrease",
+   "practical": 0.02
+  },
+  "sat_click": {
+   "match": [
+    "\\bsat click",
+    "satisfied click"
+   ],
+   "exclude": [],
+   "good": "increase",
+   "practical": 0.01
+  },
+  "ctr": {
+   "match": [
+    "\\bctr\\b",
+    "click[- ]?through"
+   ],
+   "exclude": [
+    "sponsored",
+    "\\bads?\\b",
+    "\\bad ctr"
+   ],
+   "good": "increase",
+   "practical": 0.01
+  },
+  "long_click": {
+   "match": [
+    "long click",
+    "\\bdwell"
+   ],
+   "exclude": [
+    "session"
+   ],
+   "good": "increase",
+   "practical": 0.01
+  },
+  "short_click": {
+   "match": [
+    "short click",
+    "quick back",
+    "pogo"
+   ],
+   "exclude": [],
+   "good": "decrease",
+   "practical": 0.02
+  },
+  "abandonment": {
+   "match": [
+    "abandon"
+   ],
+   "exclude": [
+    "good abandon",
+    "cart"
+   ],
+   "good": "decrease",
+   "practical": 0.01
+  },
+  "reformulation": {
+   "match": [
+    "reformulat",
+    "requer"
+   ],
+   "exclude": [
+    "rewrite"
+   ],
+   "good": "decrease",
+   "practical": 0.02
+  },
+  "requery": {
+   "match": [
+    "re-?query within",
+    "quick re-?query",
+    "similar re-?query"
+   ],
+   "exclude": [],
+   "good": "decrease",
+   "practical": 0.02
+  },
+  "queries_per_user": {
+   "match": [
+    "queries per user",
+    "searches per user"
+   ],
+   "exclude": [],
+   "good": null,
+   "practical": 0.01
+  },
+  "success_per_query": {
+   "match": [
+    "success per query",
+    "successful queries per query"
+   ],
+   "exclude": [],
+   "good": "increase",
+   "practical": 0.003
+  },
+  "sessions_per_user": {
+   "match": [
+    "sessions per user"
+   ],
+   "exclude": [],
+   "good": "increase",
+   "practical": 0.005
+  },
+  "clicks_per_user": {
+   "match": [
+    "clicks per user"
+   ],
+   "exclude": [
+    "\\bad",
+    "sponsored",
+    "\\bsat"
+   ],
+   "good": "increase",
+   "practical": 0.01
+  },
+  "time_to_click": {
+   "match": [
+    "time to (first|last) click",
+    "time to click"
+   ],
+   "exclude": [],
+   "good": "decrease",
+   "practical": 0.02
+  },
+  "zero_result": {
+   "match": [
+    "zero result",
+    "null result",
+    "\\bno result"
+   ],
+   "exclude": [
+    "click"
+   ],
+   "good": "decrease",
+   "practical": 0.03
+  },
+  "latency": {
+   "match": [
+    "latency",
+    "load time",
+    "page time"
+   ],
+   "exclude": [
+    "share",
+    "low latency"
+   ],
+   "good": "decrease",
+   "practical": 0.02
+  },
+  "ad_ctr": {
+   "match": [
+    "\\bad click",
+    "\\bads? ctr",
+    "sponsored"
+   ],
+   "exclude": [],
+   "good": "increase",
+   "practical": 0.02
+  },
+  "revenue": {
+   "match": [
+    "revenue",
+    "\\brpm\\b",
+    "monetiz"
+   ],
+   "exclude": [],
+   "good": "increase",
+   "practical": 0.01
+  },
+  "pagination": {
+   "match": [
+    "pagination",
+    "next page",
+    "page 2"
+   ],
+   "exclude": [],
+   "good": "decrease",
+   "practical": 0.03
+  },
+  "navigational_share": {
+   "match": [
+    "navigational share",
+    "share of navigational"
+   ],
+   "exclude": [],
+   "good": null,
+   "practical": 0.02
+  },
+  "autocomplete": {
+   "match": [
+    "autocomplete",
+    "suggest"
+   ],
+   "exclude": [],
+   "good": "increase",
+   "practical": 0.01
+  }
+ },
+ "ratios": {
+  "ctr": {
+   "numerator": "clicks_per_user",
+   "denominator": "queries_per_user"
+  }
+ },
+ "patterns": [
+  {
+   "id": "relevance_gain",
+   "name": "Better results, more satisfied clicks",
+   "when": {
+    "success": "up"
+   },
+   "strengthened_by": {
+    "ctr": "up",
+    "long_click": "up",
+    "clicks_per_user": "up",
+    "reformulation": "flat_or_down",
+    "abandonment": "flat_or_down",
+    "time_to_click": "flat_or_down"
+   },
+   "contradicted_by": {
+    "reformulation": "up",
+    "short_click": "up",
+    "dissatisfaction": "up"
+   },
+   "mechanism": "The ranking puts better results where users look, so more searches end in a satisfying click.",
+   "deep_dives": [
+    {
+     "cut": "success on triggered queries only (where the ranking actually changed) vs untriggered",
+     "confirms": "a larger effect on triggered queries, diluted overall",
+     "refutes": "the same effect on untouched queries, pointing to something other than ranking",
+     "needs": {
+      "segment_of": "success",
+      "by": "triggered"
+     },
+     "confirms_when": {
+      "carries_most": "triggered"
+     },
+     "refutes_when": {
+      "even": true
+     }
+    },
+    {
+     "cut": "success by query class and device",
+     "confirms": "the gain is largest where the change acts (for example tail queries for a recall change)",
+     "refutes": "the gain is uniform, which a ranking change rarely produces"
+    }
+   ],
+   "reading": "good",
+   "source": "Kohavi, Tang, Xu 2020, ch. 20 (triggered analysis needs counterfactual logging, and the untriggered complement must look like an A/A)"
+  },
+  {
+   "id": "attractive_not_relevant",
+   "name": "More clicks, not more satisfaction",
+   "when": {
+    "ctr": "up",
+    "long_click": "flat_or_down"
+   },
+   "strengthened_by": {
+    "success": "flat_or_down",
+    "short_click": "up",
+    "clicks_per_user": "up",
+    "dissatisfaction": "up"
+   },
+   "contradicted_by": {
+    "long_click": "up",
+    "success": "up",
+    "sat_click": "up"
+   },
+   "mechanism": "Results look more clickable (titles, snippets or positions) but satisfy no more often, so CTR rises without long clicks.",
+   "deep_dives": [
+    {
+     "cut": "SAT clicks (dwell of 30 seconds or more) vs all clicks, by arm",
+     "confirms": "clicks rise but SAT clicks don't",
+     "refutes": "SAT clicks rise with clicks",
+     "needs": {
+      "metric": "sat_click"
+     },
+     "confirms_when": {
+      "sat_click": "flat_or_down"
+     },
+     "refutes_when": {
+      "sat_click": "up"
+     }
+    },
+    {
+     "cut": "a similar query issued again within 5 minutes, by arm",
+     "confirms": "quick re-queries rise after clicks",
+     "refutes": "re-queries are flat",
+     "needs": {
+      "metric": "requery"
+     },
+     "confirms_when": {
+      "requery": "up"
+     },
+     "refutes_when": {
+      "requery": "flat_or_down"
+     }
+    },
+    {
+     "cut": "config diff of presentation parameters (titles, snippets, thumbnails)",
+     "confirms": "a presentation parameter differs between arms",
+     "refutes": "only ranking differs (this doesn't rule it out: ranking can surface such results too)",
+     "needs": {
+      "config": "presentation"
+     },
+     "confirms_when": {
+      "presentation_changed": true
+     }
+    },
+    {
+     "cut": "CTR and long-click rate by result position",
+     "confirms": "the CTR gain sits in top positions and comes with short clicks",
+     "refutes": "long clicks rise wherever CTR rises"
+    },
+    {
+     "cut": "whole-page CTR vs CTR on the element that changed",
+     "confirms": "element CTR rises while whole-page CTR is flat (clicks moved, not added)",
+     "refutes": "whole-page CTR rises too"
+    }
+   ],
+   "reading": "bad",
+   "source": "Hassan et al., CIKM 2013 (attractive snippets, SAT clicks at 30 s dwell); Dmitriev et al., A Dirty Dozen: Twelve Common Metric Interpretation Pitfalls, KDD 2017 (clicks shift between page elements)"
+  },
+  {
+   "id": "activity_without_success",
+   "name": "More activity without more success",
+   "reading": "bad",
+   "when": {
+    "success": "flat_or_down"
+   },
+   "any_of": {
+    "queries_per_user": "up",
+    "clicks_per_user": "up",
+    "sessions_per_user": "up"
+   },
+   "strengthened_by": {
+    "reformulation": "up",
+    "requery": "up",
+    "dissatisfaction": "up"
+   },
+   "contradicted_by": {
+    "success": "up",
+    "success_per_query": "up"
+   },
+   "mechanism": "Users click or search more while success doesn't rise. Published cases read this as attractive results, confusion or users struggling, not engagement, until a cut shows otherwise.",
+   "source": "Kohavi et al., KDD 2012; Song, Shi, Fu, WWW 2013; Dmitriev et al., A Dirty Dozen, KDD 2017 (5.12, clicks up from confusion)",
+   "deep_dives": [
+    {
+     "cut": "success per query vs per user",
+     "confirms": "success per query falls or holds while activity grows",
+     "refutes": "success per query rises with activity",
+     "needs": {
+      "metric": "success_per_query"
+     },
+     "confirms_when": {
+      "success_per_query": "flat_or_down"
+     },
+     "refutes_when": {
+      "success_per_query": "up"
+     }
+    },
+    {
+     "cut": "a similar query issued again within 5 minutes, by arm",
+     "confirms": "quick re-queries rise",
+     "refutes": "re-queries are flat",
+     "needs": {
+      "metric": "requery"
+     },
+     "confirms_when": {
+      "requery": "up"
+     },
+     "refutes_when": {
+      "requery": "flat_or_down"
+     }
+    },
+    {
+     "cut": "sessions per user vs queries per session, by arm",
+     "confirms": "more queries inside the same sessions (retrying)",
+     "refutes": "more sessions (coming back)"
+    }
+   ]
+  },
+  {
+   "id": "struggling_users",
+   "name": "More searching because results got worse",
+   "when": {
+    "queries_per_user": "up",
+    "reformulation": "up"
+   },
+   "strengthened_by": {
+    "success": "flat_or_down",
+    "abandonment": "up",
+    "time_to_click": "up"
+   },
+   "contradicted_by": {
+    "success": "up",
+    "reformulation": "down"
+   },
+   "mechanism": "Users search more because they retry: reformulations rise and success doesn't, so higher query volume is a cost, not engagement. A worse ranker can raise queries and even sessions per user for days before engagement falls.",
+   "deep_dives": [
+    {
+     "cut": "success per query vs per user",
+     "confirms": "success per query falls",
+     "refutes": "success per query holds while volume grows",
+     "needs": {
+      "metric": "success_per_query"
+     },
+     "confirms_when": {
+      "success_per_query": "down"
+     },
+     "refutes_when": {
+      "success_per_query": "up_or_flat"
+     }
+    },
+    {
+     "cut": "a similar query issued again within 5 minutes, by arm",
+     "confirms": "quick similar re-queries rise in treatment",
+     "refutes": "re-queries are flat, so the extra queries are new needs",
+     "needs": {
+      "metric": "requery"
+     },
+     "confirms_when": {
+      "requery": "up"
+     },
+     "refutes_when": {
+      "requery": "flat_or_down"
+     }
+    },
+    {
+     "cut": "navigational share of queries by arm, week by week",
+     "confirms": "treatment users drift toward easy navigational queries (giving up on hard ones)",
+     "refutes": "the query mix is stable",
+     "needs": {
+      "metric": "navigational_share"
+     },
+     "confirms_when": {
+      "navigational_share": "up"
+     },
+     "refutes_when": {
+      "navigational_share": "flat"
+     }
+    },
+    {
+     "cut": "reformulation rate by query class (head, torso, tail; navigational, informational)",
+     "confirms": "reformulation rises on the classes the change touched",
+     "refutes": "reformulation rises evenly, pointing to a logging or session change"
+    },
+    {
+     "cut": "distribution of queries per session by arm",
+     "confirms": "more long retry chains in treatment",
+     "refutes": "more sessions, not longer ones"
+    }
+   ],
+   "reading": "bad",
+   "source": "Kohavi et al., Five Puzzling Outcomes, KDD 2012 (a ranking bug raised queries per user 10% and revenue 30%); Song, Shi, Fu, WWW 2013 (a worse ranker raised sessions per user for days); Hassan et al., CIKM 2013 (re-query within 5 minutes)"
+  },
+  {
+   "id": "real_engagement",
+   "name": "More searching because search got better",
+   "when": {
+    "queries_per_user": "up",
+    "success": "up"
+   },
+   "strengthened_by": {
+    "sessions_per_user": "up",
+    "reformulation": "flat_or_down"
+   },
+   "contradicted_by": {
+    "reformulation": "up"
+   },
+   "mechanism": "Users come back and search more because searches succeed more often. Treat it with suspicion: sessions per user rarely improves, and a short-lived rise can come from a worse ranker.",
+   "deep_dives": [
+    {
+     "cut": "sessions per user and return rate by arm",
+     "confirms": "more return visits, not longer sessions",
+     "refutes": "the extra queries sit inside the same sessions"
+    },
+    {
+     "cut": "new vs returning users",
+     "confirms": "the gain holds for returning users",
+     "refutes": "the gain is only in first-week users (novelty)"
+    }
+   ],
+   "reading": "good",
+   "source": "Kohavi, 2017 talk (sessions per user improves in about 1 in 5000 Bing experiments); Song, Shi, Fu, WWW 2013"
+  },
+  {
+   "id": "speed_cost",
+   "name": "Slower results cost engagement",
+   "when": {
+    "latency": "up"
+   },
+   "strengthened_by": {
+    "abandonment": "up",
+    "ctr": "flat_or_down",
+    "success": "flat_or_down"
+   },
+   "contradicted_by": {
+    "abandonment": "down"
+   },
+   "mechanism": "The treatment serves results more slowly, and slower pages lose clicks and raise abandonment, which can hide a relevance gain. Speed effects tend to grow over weeks rather than fade.",
+   "deep_dives": [
+    {
+     "cut": "abandonment and CTR by latency bucket, per arm",
+     "confirms": "the loss sits in the slow buckets",
+     "refutes": "the loss is flat across latency buckets",
+     "needs": {
+      "segment_of": "abandonment",
+      "by": "latency"
+     },
+     "confirms_when": {
+      "carries_most": "slow"
+     },
+     "refutes_when": {
+      "even": true
+     }
+    },
+    {
+     "cut": "latency by page type and load type (cached reloads vs fresh loads), by arm",
+     "confirms": "latency rises on the same page types",
+     "refutes": "the page mix changed, so latency moved without pages getting slower"
+    },
+    {
+     "cut": "effect by device and network type",
+     "confirms": "mobile or slow networks carry the loss",
+     "refutes": "the loss is the same everywhere"
+    },
+    {
+     "cut": "relevance metrics on queries where latency didn't change",
+     "confirms": "relevance improves once latency is held fixed",
+     "refutes": "no gain even at equal latency"
+    }
+   ],
+   "reading": "bad",
+   "source": "Brutlag, Google, 2009 (400 ms delay: -0.44% searches in weeks 1-3, -0.76% in weeks 4-6, still -0.21% after removal); Dmitriev et al., A Dirty Dozen: Twelve Common Metric Interpretation Pitfalls, KDD 2017 (latency moved by page mix)"
+  },
+  {
+   "id": "recall_over_precision",
+   "name": "More results for hard queries, lower precision",
+   "when": {
+    "zero_result": "down"
+   },
+   "strengthened_by": {
+    "ctr": "flat_or_down",
+    "success": "flat_or_down",
+    "pagination": "up"
+   },
+   "contradicted_by": {
+    "success": "up"
+   },
+   "mechanism": "The change returns results for queries that used to get none, but those results are weak, so averages over all queries fall.",
+   "deep_dives": [
+    {
+     "cut": "success and CTR on queries that had zero results in control",
+     "confirms": "these queries now get results but low success",
+     "refutes": "they succeed at the normal rate"
+    },
+    {
+     "cut": "the same metrics excluding those queries",
+     "confirms": "the rest of the traffic is flat",
+     "refutes": "the drop is broad"
+    }
+   ],
+   "reading": "bad",
+   "source": "Dmitriev et al., A Dirty Dozen: Twelve Common Metric Interpretation Pitfalls, KDD 2017 (ratio metrics move with their denominator); reasoned, no published case of this exact signature"
+  },
+  {
+   "id": "good_abandonment",
+   "name": "Answers on the page reduce clicks",
+   "when": {
+    "abandonment": "up",
+    "success": "up_or_flat"
+   },
+   "strengthened_by": {
+    "ctr": "flat_or_down",
+    "time_to_click": "any",
+    "queries_per_user": "flat_or_down",
+    "clicks_per_user": "flat_or_down"
+   },
+   "contradicted_by": {
+    "reformulation": "up",
+    "success": "down",
+    "ctr": "up",
+    "clicks_per_user": "up",
+    "latency": "up"
+   },
+   "mechanism": "More users get their answer from the results page itself (answers, richer snippets), so they leave without clicking and don't retry.",
+   "deep_dives": [
+    {
+     "cut": "abandonment on queries with an answer or rich snippet vs without",
+     "confirms": "the rise sits on answer-bearing queries",
+     "refutes": "the rise sits on queries without an answer",
+     "needs": {
+      "segment_of": "abandonment",
+      "by": "answer"
+     },
+     "confirms_when": {
+      "carries_most": "with answer"
+     },
+     "refutes_when": {
+      "carries_most": "without answer"
+     }
+    },
+    {
+     "cut": "a similar query issued again within 5 minutes after an abandoned query",
+     "confirms": "abandoned users don't come back to retry",
+     "refutes": "abandoned users retry",
+     "needs": {
+      "metric": "requery"
+     },
+     "confirms_when": {
+      "requery": "flat_or_down"
+     },
+     "refutes_when": {
+      "requery": "up"
+     }
+    },
+    {
+     "cut": "config diff of presentation parameters (answers, rich snippets)",
+     "confirms": "an answer or snippet parameter differs between arms",
+     "refutes": "only ranking differs (this doesn't rule it out: ranking can surface such results too)",
+     "needs": {
+      "config": "presentation"
+     },
+     "confirms_when": {
+      "presentation_changed": true
+     }
+    },
+    {
+     "cut": "abandonment by device",
+     "confirms": "the rise is larger on mobile, where good abandonment is common",
+     "refutes": "the rise is the same on desktop",
+     "needs": {
+      "segment_of": "abandonment",
+      "by": "device"
+     },
+     "confirms_when": {
+      "carries_most": "mobile"
+     }
+    }
+   ],
+   "reading": "good",
+   "source": "Li, Huffman, Tokuda, SIGIR 2009 (good abandonment, higher on mobile); Pew Research 2025 (clicks 8% vs 15% with AI summaries)"
+  },
+  {
+   "id": "bad_abandonment",
+   "name": "Worse results make users give up",
+   "reading": "bad",
+   "when": {
+    "abandonment": "up",
+    "success": "flat_or_down"
+   },
+   "strengthened_by": {
+    "ctr": "down",
+    "clicks_per_user": "down",
+    "reformulation": "up",
+    "dissatisfaction": "up"
+   },
+   "contradicted_by": {
+    "success": "up"
+   },
+   "mechanism": "Users leave without clicking because results got worse, not because the answer was on the page.",
+   "source": "Li, Huffman, Tokuda, SIGIR 2009 (good vs bad abandonment); Song, Shi, Fu, WWW 2013",
+   "deep_dives": [
+    {
+     "cut": "abandonment on queries with an answer or rich snippet vs without",
+     "confirms": "the rise sits on queries without an answer",
+     "refutes": "the rise sits on answer-bearing queries",
+     "needs": {
+      "segment_of": "abandonment",
+      "by": "answer"
+     },
+     "confirms_when": {
+      "carries_most": "without answer"
+     },
+     "refutes_when": {
+      "carries_most": "with answer"
+     }
+    },
+    {
+     "cut": "config diff of presentation parameters (answers, rich snippets)",
+     "confirms": "only ranking differs",
+     "refutes": "an answer or snippet parameter differs"
+    }
+   ]
+  },
+  {
+   "id": "mixed_wins_losses",
+   "name": "Some queries win, others lose",
+   "when": {
+    "abandonment": "up",
+    "success": "up_or_flat"
+   },
+   "strengthened_by": {
+    "ctr": "up",
+    "clicks_per_user": "up",
+    "success": "up"
+   },
+   "contradicted_by": {
+    "ctr": "down"
+   },
+   "mechanism": "The change helps many queries and hurts others, so averages hide both: more clicks overall while a slice of queries is abandoned more.",
+   "deep_dives": [
+    {
+     "cut": "per-query win/loss: share of queries whose success rose vs fell",
+     "confirms": "a sizeable group of losing queries",
+     "refutes": "losses are spread thinly, not concentrated"
+    },
+    {
+     "cut": "abandonment by query class and query length",
+     "confirms": "the abandonment rise sits in one class",
+     "refutes": "abandonment rises evenly"
+    }
+   ],
+   "reading": "mixed",
+   "source": "Dmitriev et al., A Dirty Dozen: Twelve Common Metric Interpretation Pitfalls, KDD 2017 (heterogeneous effects); reasoned from averages hiding opposite effects"
+  },
+  {
+   "id": "ads_displaced",
+   "name": "Organic results take attention from ads",
+   "when": {
+    "ad_ctr": "down"
+   },
+   "strengthened_by": {
+    "ctr": "up",
+    "clicks_per_user": "up",
+    "success": "up"
+   },
+   "contradicted_by": {
+    "ctr": "down"
+   },
+   "mechanism": "Better organic results draw clicks that used to go to ads, so ad clicks fall while organic engagement rises.",
+   "deep_dives": [
+    {
+     "cut": "ad clicks by ad position and by the rank of the first satisfying organic result",
+     "confirms": "ad clicks fall most where a good organic result now sits above the ad",
+     "refutes": "ad clicks fall evenly"
+    },
+    {
+     "cut": "ad impressions per query and revenue per user",
+     "confirms": "impressions hold and clicks fall",
+     "refutes": "fewer ads are shown (an ad-serving change)"
+    }
+   ],
+   "reading": "mixed",
+   "source": "Dmitriev et al., A Dirty Dozen: Twelve Common Metric Interpretation Pitfalls, KDD 2017 (ad load by page type); Kohavi et al. 2012 (bad organic results raise revenue)"
+  },
+  {
+   "id": "worse_organic_ads_look_better",
+   "name": "Worse organic results make ads look better",
+   "reading": "bad",
+   "when": {
+    "success": "flat_or_down"
+   },
+   "any_of": {
+    "revenue": "up",
+    "ad_ctr": "up"
+   },
+   "strengthened_by": {
+    "queries_per_user": "up",
+    "reformulation": "up"
+   },
+   "contradicted_by": {
+    "success": "up"
+   },
+   "mechanism": "Revenue or ad clicks rise because organic results got worse: users search more and ads look relatively more relevant. Bing saw a ranking bug raise revenue per user 30%.",
+   "source": "Kohavi et al., Five Puzzling Outcomes, KDD 2012",
+   "deep_dives": [
+    {
+     "cut": "success per query vs per user",
+     "confirms": "success per query falls",
+     "refutes": "success per query holds",
+     "needs": {
+      "metric": "success_per_query"
+     },
+     "confirms_when": {
+      "success_per_query": "down"
+     },
+     "refutes_when": {
+      "success_per_query": "up_or_flat"
+     }
+    },
+    {
+     "cut": "ad clicks per query vs organic clicks per query, by arm",
+     "confirms": "ad clicks rise where organic clicks fall",
+     "refutes": "both rise together"
+    }
+   ]
+  },
+  {
+   "id": "denominator_driven",
+   "name": "A ratio moved because its denominator moved",
+   "kind": "ratio",
+   "mechanism": "{ratio} moved because {denominator} moved ({denominator_change}), not because {numerator} changed; the ratio's story is about volume, not quality.",
+   "deep_dives": [
+    {
+     "cut": "{numerator} and {denominator} per user, side by side",
+     "confirms": "the denominator carries the change",
+     "refutes": "the numerator moves too"
+    },
+    {
+     "cut": "what changed the {denominator} (query volume, sessions, logging of searches)",
+     "confirms": "a volume or logging change explains it",
+     "refutes": "volume is steady"
+    },
+    {
+     "cut": "the same clicks over the finest denominator that doesn't move itself (for example clicks per session)",
+     "confirms": "the effect disappears on a stable denominator",
+     "refutes": "the effect holds on a stable denominator"
+    }
+   ],
+   "reading": "neutral",
+   "source": "Dmitriev et al., A Dirty Dozen: Twelve Common Metric Interpretation Pitfalls, KDD 2017 (module CTR -40% while clicks +74% and impressions +200%)"
+  },
+  {
+   "id": "concentrated_segment",
+   "name": "The effect sits in one segment",
+   "kind": "segment",
+   "mechanism": "{metric}'s change comes mostly from {segment} ({share} of the overall change), and segments differ more than noise allows.",
+   "deep_dives": [
+    {
+     "cut": "{metric} for {segment} vs the rest, with triggered queries only",
+     "confirms": "the change is real and confined to {segment}",
+     "refutes": "the other segments move too once diluted traffic is removed"
+    },
+    {
+     "cut": "what the treatment changes for {segment} (ranking features, coverage, rendering)",
+     "confirms": "a mechanism specific to {segment}",
+     "refutes": "nothing in the change targets {segment}"
+    },
+    {
+     "cut": "sample split and event logging within {segment}, by arm",
+     "confirms": "the segment is balanced and logs the same way",
+     "refutes": "the segment itself is imbalanced or logs differently (an artifact)"
+    }
+   ],
+   "reading": "neutral",
+   "source": "Dmitriev et al., A Dirty Dozen: Twelve Common Metric Interpretation Pitfalls, KDD 2017 (effects confined to a country, browser or version); tail-query lifts reported for semantic retrieval (snippet-level)"
+  },
+  {
+   "id": "novelty",
+   "name": "The effect is fading",
+   "kind": "check",
+   "check": "novelty",
+   "mechanism": "The effect shrinks with each day users have had the treatment, so the long-run effect is likely smaller than the average. UI changes tend to fade; ranking, speed and ad-load effects tend to grow, so a fading ranking effect deserves a second look.",
+   "deep_dives": [
+    {
+     "cut": "effect by days since first exposure, per weekly cohort",
+     "confirms": "every cohort fades the same way",
+     "refutes": "late cohorts start lower (cohort mix, not novelty)"
+    },
+    {
+     "cut": "new vs returning users",
+     "confirms": "returning users fade",
+     "refutes": "only new users differ"
+    }
+   ],
+   "reading": "bad",
+   "source": "Song, Shi, Fu, WWW 2013; Brutlag 2009; Hohnhold, O'Brien, Tang, KDD 2015 (ads blindness grows over months)"
+  },
+  {
+   "id": "artifact",
+   "name": "A data or logging problem, not user behaviour",
+   "kind": "check",
+   "check": "sample_split|config_params|config_edits|scorecard|pre_period|invariant",
+   "mechanism": "A validity check flagged the data itself, so the movements may reflect logging, assignment or export problems rather than users.",
+   "deep_dives": [
+    {
+     "cut": "event counts per user by arm for every logged event the change could touch",
+     "confirms": "one arm logs differently",
+     "refutes": "logging is identical"
+    },
+    {
+     "cut": "exposure counts by day, platform and browser",
+     "confirms": "the imbalance sits in one slice",
+     "refutes": "the imbalance is everywhere (assignment problem)"
+    },
+    {
+     "cut": "client-logged vs server-logged versions of the same metric, by arm",
+     "confirms": "only client events move (telemetry loss differs by arm)",
+     "refutes": "client and server agree"
+    },
+    {
+     "cut": "share of users removed by bot and spam filters, by arm",
+     "confirms": "filters remove different shares in each arm",
+     "refutes": "filter rates match"
+    }
+   ],
+   "reading": "bad",
+   "source": "Dmitriev et al., A Dirty Dozen: Twelve Common Metric Interpretation Pitfalls, KDD 2017 (telemetry loss in one arm, bot filters hitting engaged users, metric-level sample ratio mismatch)"
+  }
+ ],
+ "segment_dimensions": {
+  "device": [
+   "mobile",
+   "desktop",
+   "tablet",
+   "app",
+   "ios",
+   "android",
+   "web"
+  ],
+  "query class": [
+   "head queries",
+   "torso queries",
+   "tail queries",
+   "head",
+   "torso",
+   "tail"
+  ],
+  "intent": [
+   "navigational",
+   "informational",
+   "transactional"
+  ],
+  "triggered": [
+   "triggered",
+   "untriggered",
+   "not triggered"
+  ],
+  "answer": [
+   "with answer",
+   "without answer",
+   "answer",
+   "no answer"
+  ],
+  "latency": [
+   "slow",
+   "fast",
+   "medium"
+  ]
+ },
+ "_sources": "Research notes: research_notes/Experiment metric deep dives/search_metric_signatures.md (2026-10-13).",
+ "presentation_params": "snippet|title|thumbnail|layout|\\bui\\b|render|answer|card|module|font|color|image"
+}

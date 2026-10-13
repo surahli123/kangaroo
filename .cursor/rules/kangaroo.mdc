@@ -1,0 +1,6 @@
+---
+description: Analyzing a search A/B experiment, its scorecard, or whether it can go to triage
+alwaysApply: false
+---
+
+Follow skills/kangaroo/SKILL.md: call the kangaroo MCP tools (or `python3 bin/kangaroo <command>` in the terminal), reply with the "In one minute" text exactly as the tool returns it, never compute or restate a number, and call an approval tool only when the person approves in their own words, with their name.

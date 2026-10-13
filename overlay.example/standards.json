@@ -1,0 +1,14 @@
+{
+ "_note": "Team launch standards. Defaults follow Statsig's guidance (split fail at p<0.001, warn at p<0.01) and Spotify's published rule; replace with the triage meeting's. srm_unit_fallback is off: per-metric unit counts never test the split.",
+ "srm_alpha": 0.001,
+ "min_days": 7,
+ "harm_within_margin": "escalate",
+ "below_bar": "escalate",
+ "secondary_harm": "note",
+ "secondary_q": 0.1,
+ "max_extension_factor": 2.0,
+ "guardrails": [],
+ "directions": {},
+ "srm_warn_alpha": 0.01,
+ "srm_unit_fallback": false
+}

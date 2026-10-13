@@ -1,0 +1,32 @@
+{
+ "_note": "Warehouse settings for the agent. At work: real table and column names (through the alias map), and 'approved' lists only the tables the privacy gate has approved.",
+ "tables": {
+  "t1": "t1_scorecard",
+  "assignment": "exposures",
+  "t3": "t3_queries",
+  "t4": "t4_tenants"
+ },
+ "approved": [
+  "t1",
+  "assignment",
+  "t3",
+  "t4"
+ ],
+ "assignment": {
+  "unit": "unit_id",
+  "experiment": "experiment_name",
+  "group": "group_name",
+  "first_exposure": "first_exposure_date"
+ },
+ "cohort": {
+  "tenant": "tenant_id",
+  "flag": "paying"
+ },
+ "t1_columns": {},
+ "t3_columns": {},
+ "split_count_metric": "Exposed Users",
+ "prefer_cuped": false,
+ "ci_level": 0.95,
+ "min_units_per_cell": 100,
+ "max_cuts": 8
+}
