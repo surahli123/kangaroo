@@ -62,6 +62,14 @@ def investigate(ctx, test, pair_checks, mid_flight, trace):
         prereg = {**prereg, "primaries": {**(prereg.get("primaries") or {}), "metrics": [
             {"metric": NO_PRIMARY, "direction": "increase", "bar": 0.0}]}}
         decision = decide.decide(sc, prereg, pair_config, ctx["standards"], daily)
+    # A primary with no bar: the owner has not said which change is worth a launch. decide.py reads a
+    # missing bar as "any clear gain", so the call is replaced here (before explain reads it). A bar of 0
+    # is the owner's own choice and keeps the call.
+    unset = [m["metric"] for m in (prereg.get("primaries") or {}).get("metrics") or [] if m.get("bar") is None]
+    if unset:
+        trace.step("decide", pair=test, status="no call", reason=f"no bar for {', '.join(unset)}")
+        decision = {**decision, "call": "not_made", "call_text": "Not made", "unset_bars": unset,
+                    "reason": f"the contract has no bar for {', '.join(unset)}"}
     graded = grade(pair_checks, mid_flight)
     trace.grade(test, graded, after="M0")
     evidence = {"metrics": [], "cuts": []}

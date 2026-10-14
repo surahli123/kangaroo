@@ -533,6 +533,17 @@ class Session(unittest.TestCase):
             save(registered, {**load(config_path("synth-3p-pin")), "sequential": False})
             fixed = api.analyze(scorecard=scorecard, contract=contract_path("synth-3p-pin"), config=registered, path=home)["run_dir"]
             self.assertIs(load(os.path.join(fixed, "case", "scorecard.json"))["analysis"]["sequential"], False)
+        with self.subTest(case="a primary without a bar gets no call; a bar of 0 is the owner's choice and gets one"):
+            home = tempfile.mkdtemp(dir=STATE["tmp"])
+            scorecard, contract = os.path.join(home, "scorecard.json"), os.path.join(home, "contract.json")
+            save(scorecard, rows)
+            registered = load(contract_path("synth-3p-pin"))
+            for bar, made in ((None, False), (0, True)):
+                primaries = {**registered["primaries"], "metrics": [{**m, "bar": bar} for m in registered["primaries"]["metrics"]]}
+                save(contract, {**registered, "primaries": primaries})
+                calls = api.analyze(scorecard=scorecard, contract=contract, config=config_path("synth-3p-pin"),
+                                    path=home)["counts"]["calls"]
+                self.assertEqual(calls["pin"] != "not_made", made, (bar, calls))
         with self.subTest(case="without the exposed-user count, the vendor's balance check decides the split"):
             loss = [r for r in t1_rows("synth-split-loss") if r["metric_name"] != "Exposed Users"]
             self.assertEqual(self.analyze("synth-split-loss", loss)["counts"]["grades"], {"test": "not_permitted"})

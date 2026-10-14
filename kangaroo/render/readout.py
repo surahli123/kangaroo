@@ -18,7 +18,8 @@ GRADE = {"decision_grade": "Decision grade", "directional_only": "Directional on
 SUPPORT = {"confirmed": "Confirmed", "consistent": "Consistent", "inferred": "Likely", "exploratory": "Exploratory"}
 ORDER = {"confirmed": 0, "consistent": 1, "inferred": 2, "exploratory": 3}
 CALL = {"ship": "Ship", "dont_ship": "Do not ship", "escalate": "Escalate to triage", "keep_running": "Keep the test running",
-        "no_effect": "Stop the test. It has no effect", "cant_tell": "No decision", "not_ab": "No decision. This is not an A/B test"}
+        "no_effect": "Stop the test. It has no effect", "cant_tell": "No decision", "not_ab": "No decision. This is not an A/B test",
+        "not_made": "Not made"}
 CHECK = {"PASS": "Pass", "WARN": "Warning", "UNKNOWN": "Not known", "BLOCK": "Fail"}
 ROLE = {"primary": "Primary", "guardrail": "Guardrail"}
 BANNED = ("packet", "seal", "receipt", "M0-", "accepted_m", "checkpoint")
@@ -123,6 +124,17 @@ class Pair:
         return [w for w in self.grade["warns"] if flat or not w.lower().startswith("power")]
 
 
+def unbarred(pr, step=False):
+    """The primaries without a bar, by name; or by count when none has a bar (a metric name can hold a comma)."""
+    unset = pr.p["decision"].get("unset_bars") or []
+    total = sum(1 for v in pr.verdicts if v["role"] == "primary")
+    if not unset:
+        return None
+    if len(unset) == total and total > 1:
+        return f"a bar for each of the {total} primaries" if step else f"its {total} primaries"
+    return f"the bar for {'; '.join(unset)}" if step else "; ".join(unset)
+
+
 def _limit(v):
     if v.get("threshold") is None:
         return ""
@@ -139,6 +151,8 @@ def call_line(pr):
         return "Not made. The contract names no primary metric."
     if missing:
         return f"Not made. {', '.join(missing)} {'are' if len(missing) > 1 else 'is'} not in the scorecard."
+    if unbarred(pr):
+        return f"Not made. The contract has no bar for {unbarred(pr)}."
     head = CALL.get(d["call"], d["call_text"]) + "."
     dec = d.get("decider") or {}
     v = next((x for x in d["verdicts"] if x["metric"] == dec.get("metric") and x["role"] == dec.get("role")), None)
@@ -149,10 +163,11 @@ def call_line(pr):
              else f"{v['point']:+g} ({level} {v['low']:+g} to {v['high']:+g})")
     word = "increased" if v["point"] > 0 else "decreased"
     value = value.replace(pct(v["point"]), pct(v["point"]).lstrip("+-"), 1) if v.get("unit", "relative") == "relative" else value
-    tail = {"breached": f"This is more than its limit of {_limit(v)}.",
-            "harm_within_margin": f"This is inside its limit of {_limit(v)}.",
-            "better": f"This meets its bar of {_limit(v)}.",
-            "below_bar": f"This is below its bar of {_limit(v)}.",
+    limit = _limit(v)
+    tail = {"breached": f"This is more than its limit of {limit}." if limit else "This is a clear harm. The contract gives no limit.",
+            "harm_within_margin": f"This is inside its limit of {limit}." if limit else "",
+            "better": f"This meets its bar of {limit}." if limit else "",
+            "below_bar": f"This is below its bar of {limit}." if limit else "",
             "worse": "The contract expected the opposite direction.",
             "undetermined": "The change is not clear."}.get(v["verdict"], "")
     if v["verdict"] == "undetermined":
@@ -238,6 +253,8 @@ def todo(pr):
             steps.append("Name the scorecard metric that counts all exposed users. Then kangaroo can test the sample split.")
         elif c["id"] == "duration":
             steps.append("Find the planned end date of the test.")
+    if unbarred(pr) and not pr.blocked:
+        steps.append(f"Write {unbarred(pr, step=True)} in the contract. Take each bar from the test plan, not from the results.")
     dur = next((c for c in p["m0"] if c["id"] == "duration"), None)
     if dur and dur["details"].get("end") and str(dur["details"].get("as_of")) < str(dur["details"]["end"]):
         steps.append(f"Wait for the planned end ({dur['details']['end']}), or use this report for discussion only.")
@@ -339,6 +356,8 @@ def metrics_table(pr, cause_ref):
                "undetermined": "No clear change", "within": "Inside the limit", "no_harm_detected": "Inside the limit",
                "harm_within_margin": "Worse, inside the limit", "breached": "Past the limit", "missing": "Not in the scorecard",
                "no_interval": "No interval"}.get(v["verdict"], v["verdict"])
+        if v.get("threshold") is None and v["verdict"] in ("better", "no_harm_detected", "breached"):
+            res = {"better": "Better. No bar", "no_harm_detected": "No clear harm. No limit", "breached": "Worse. No limit"}[v["verdict"]]
         if v["verdict"] == "undetermined" and clear(m) and level and v["role"] == "primary":
             res = f"No clear change at {100 * level:.2f}%"  # clear at 95%, but the call reads primaries at a wider level
         rows.append((v["metric"], ROLE[v["role"]], change(m), res))

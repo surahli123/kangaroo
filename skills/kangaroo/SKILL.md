@@ -41,5 +41,6 @@ Run the commands from the kangaroo repository: `python3 bin/kangaroo <command>`.
 - Keep the support that the report gives each finding: Confirmed, Consistent, Likely or Measured. Do not make a finding stronger.
 - A check that cannot run makes the grade lower. It does not stop the analysis.
 - For an arm that the report marks "Not readable", give only the fix. Do not interpret its metrics.
+- If the call is "Not made" because the contract has no bar, ask the owner for the bar from the test plan. Do not propose a bar, and never take one from the results.
 - Do not change a scorecard, contract, config or knowledge file to change a result. If an input looks wrong, tell the person.
 - Do not put warehouse rows in a reply. Kangaroo gives only aggregates and statement IDs.

@@ -158,6 +158,7 @@ def run(experiment, overlay, warehouse, configs, out_dir, knowledge_dir=None, ca
               "cuts_ran": sum(a["status"] == "ran" for p in pairs for a in p["actions"]),
               "access_gaps": sum(a["status"] == "access gap" for p in pairs for a in p["actions"]),
               "grades": {p["test"]: p["grade"]["grade"] for p in pairs},
+              "calls": {p["test"]: p["decision"]["call"] for p in pairs},
               "next_check": next_check_proxies(pairs, templates, wh_cfg)}
     trace.finish(sha, counts)
     trace.write(os.path.join(out_dir, "trace.json"))
@@ -258,8 +259,11 @@ def contract_template(rows, cols):
     metrics = sorted({r[cols["metric"]] for r in rows})
     return {"experiment_id": rows[0][cols["experiment"]], "name": rows[0][cols["experiment"]], "design": "ab", "confirmed": False,
             "ci_level": 0.95, "hypothesis": "(what the change should do)",
-            "primaries": {"rule": "any", "metrics": [{"metric": "(one of the metrics below)", "direction": "increase", "bar": 0.005}]},
-            "guardrails": [], "intended_params": [], "feature_metrics": [], "_metrics_in_the_scorecard": metrics}
+            "primaries": {"rule": "any", "metrics": [{"metric": "(one of the metrics below)", "direction": "increase", "bar": None}]},
+            "guardrails": [], "intended_params": [], "feature_metrics": [], "_metrics_in_the_scorecard": metrics,
+            "_bars": "Take each bar from the test plan, not from the results: the smallest relative change that is worth "
+                     "a launch (0.005 is 0.5%). Without a bar the call is not made. A bar of 0 means that any clear gain is "
+                     "enough. For each guardrail, give the margin: the largest harm that you accept."}
 
 
 def warehouse_from(spec, dialect="spark"):

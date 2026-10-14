@@ -69,6 +69,7 @@ The current agent marks M0 and M1 as not ready on each flight. The cause is its 
 - Traces, cases, lessons and cards stay on the laptop.
 - The deep dives need T3 through the privacy gate. Until then, they are access gaps, and the grade does not depend on them.
 - A lesson changes the knowledge only after its evaluation passes and the owner approves it by name.
+- A primary without a bar gets no launch call: the report says "Not made". The owner takes each bar from the test plan, never from the results. A bar of 0 means that any clear gain is enough.
 - In a chat, the skill runs `bin/kangaroo` in the shell. The MCP server is experimental: see `experimental/mcp/README.md`.
 
 ## 7. Test rules
