@@ -10,14 +10,19 @@ Kangaroo runs at home on a synthetic warehouse with the same shape as the work w
 
 ## The report
 
-Each report has these sections. It uses ASD-STE100 writing rules: short sentences, active voice, one meaning for each word. Each claim has its evidence next to it.
+Each report follows the order of a standard experiment readout (Optimizely's experiment plan-and-results template): the result and the call first, then the plan, the results, the causes, the data checks and the next steps. It uses ASD-STE100 writing rules: short sentences, active voice, one meaning for each word. Each claim has its evidence next to it.
 
 | Section | What it gives |
 |---|---|
-| Summary | Grade, triage readiness, launch call with its deciding result, open questions, steps before triage, triage questions |
-| Metrics | Each contract metric: its change, the 95% CI, the result against its bar or limit, and its cause |
-| Causes | Each candidate cause, its support (Confirmed, Consistent, Likely, Ruled out) and the cuts behind it |
-| Data checks | Each M0 check: its result, its evidence and its source |
+| Summary | The result (Positive, Negative, Mixed, Inconclusive or Not readable), the launch call with its deciding result, the grade and the triage readiness. One line each |
+| Plan | The hypothesis, the primary metrics with their bars, the guardrails with their limits, the arms and the dates |
+| Results | Each contract metric: its change with the 95% CI, and the result against its bar or limit. At most 3 other clear changes |
+| Why it moved | The 3 strongest causes with their support (Confirmed, Consistent, Likely) and the cuts behind them, the causes ruled out, the changes with no cause, and similar confirmed experiments |
+| Data quality | Only the checks that did not pass |
+| Next steps | One numbered list of what to do before triage |
+| Appendix | Every data check with its evidence, the other causes, the drafts that are not cited |
+
+The chat reply gives the Summary and the Next steps.
 
 `render/ste.py` tests the writing rules that a script can test. The test suite runs it on every report. It does not test the approved dictionary, because that dictionary is licensed.
 

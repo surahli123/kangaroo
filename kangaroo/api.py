@@ -217,14 +217,14 @@ def contract_template(scorecard, out, path=None):
 
 
 def report(run="latest", part="summary", path=None):
-    """The report, or one part: summary (what analyze returns), details (the tables), all."""
+    """The report, or one part: summary (what analyze returns), details (everything after the summary), all."""
     rd = _run_dir(home(path), run)
     with open(os.path.join(rd, "readout.md"), encoding="utf-8") as handle:
         text = handle.read()
     if part in ("summary", "minute"):
         out = minute(text)
     elif part == "details":
-        out = text[text.find("## Metrics"):] if "## Metrics" in text else text
+        out = text[text.find("## Plan"):] if "## Plan" in text else text
     else:
         out = text
     return {"run_dir": rd, "text": out}

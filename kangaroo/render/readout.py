@@ -1,11 +1,18 @@
 """The report: short sentences in ASD-STE100 style (see ste.py), and evidence beside every claim.
 
+The order follows Optimizely's experiment plan-and-results template
+and the usual experiment readout: the result and the call first, then the plan, the results, why
+they moved, the data checks and the next steps. Full tables go to the appendix.
+
     # <experiment>
-    ## Summary        grade, triage, launch call, open questions, before triage, triage will ask
-    ## Metrics        each contract metric: change, 95% CI, result against its bar or limit, cause
-    ## Causes         each candidate cause: support, and the cuts or metrics behind it
-    ## Data checks    each M0 check: result and evidence
-    ## Similar experiments, the support scale, the evidence sources, provenance
+    ## Summary         result label, launch call, grade, ready for triage (one line each)
+    ## Plan            hypothesis, primary metrics with bars, guardrails with limits, arms, dates
+    ## Results         each contract metric: change with its 95% CI, and the result against its bar or limit
+    ## Why it moved    the strongest causes with their evidence, causes ruled out, changes with no cause
+    ## Data quality    only the checks that did not pass
+    ## Next steps      one numbered list: what to do before triage
+    ## Appendix        every data check, every cause with its cuts, similar experiments
+    then the support scale, the evidence sources and the provenance
 
 Every sentence comes from structured results (verdicts, checks, cut actions, claims), not from
 the tools' prose. A cause is "Confirmed" only when the claim names the statements behind it.
@@ -175,45 +182,12 @@ def call_line(pr):
     return f"{head} {v['metric']} {word} {value}. {tail}".strip()
 
 
-def open_questions(pr):
-    if pr.blocked:
-        return []
-    out = []
-    dur = next((c for c in pr.p["m0"] if c["id"] == "duration"), None)
-    if dur and dur["details"].get("end") and str(dur["details"].get("as_of")) < str(dur["details"]["end"]):
-        out.append(f"The test has not ended. The snapshot ({dur['details']['as_of']}) is before the planned end "
-                   f"({dur['details']['end']}).")
-    for c in pr.p["m0"]:
-        if c["affects_grade"] and c["status"] == "UNKNOWN":
-            named = c["name"].lower() in c["reason"].lower()[:len(c["name"]) + 6]  # "the sample split is ..." names itself
-            out.append(_sentence(c["reason"] if named else f"{c['name']}: {c['reason']}"))
-    power = next((c for c in pr.p["m0"] if c["id"] == "M0-5"), None)
-    for w in pr.warns():
-        if w.lower().startswith("power") and power and power["details"].get("weak"):
-            weak = power["details"]["weak"]
-            first = weak[0]
-            out.append(f"Power is low. {first['metric']} can detect a change of {100 * first['mde']:.2f}% or more, but its bar "
-                       f"is {100 * first['bar']:.2f}%." + ((" 1 more primary is similar." if len(weak) == 2 else f" {len(weak) - 1} more primaries are similar.")
-                                                    if len(weak) > 1 else ""))
-        else:
-            out.append(_sentence(w))
-    durability = next((q for q in pr.p["explained"]["standard"] if q["question"] == "Will it last?"), None)
-    if durability and durability["ok"] is False and "fading" not in durability["answer"]:
-        out.append("Durability is not known. Kangaroo has no effect series by day since first exposure.")
-    orphans = pr.orphans()
-    if orphans:
-        listed = ", ".join(f"{c['metric']} ({pct(pr.metric(c['metric'])['rel_delta'])})" for c in orphans)
-        out.append(f"No cause in the library explains {len(orphans)} clear change{'s' if len(orphans) > 1 else ''}: {listed}.")
-    return list(dict.fromkeys(out))
-
-
-def triage_line(pr, questions):
+def triage_line(pr, steps):
     if pr.blocked:
         return "No. Fix the data problem first."
     if pr.grade["grade"] == "directional_only":
         return "For discussion only. Do not use it for a decision."
-    n = len(questions)
-    return "Yes." if not n else f"Yes, with {n} open question{'s' if n > 1 else ''}."
+    return "Yes." if not steps else "Yes, after the next steps."
 
 
 def next_check(p):
@@ -284,105 +258,158 @@ def todo(pr):
     return list(dict.fromkeys(steps))
 
 
-def triage_asks(pairs, cfg_present):
-    asks = [] if cfg_present else ["What does each arm change? Kangaroo had no config."]
-    changed = sorted({d for pr in pairs for d in (pr.p["m0_details"].get("diffs") or [])})
-    if changed:
-        asks.append(f"The config shows a change to {', '.join(changed)}. Is that the full change?")
-    for pr in pairs:
-        if pr.blocked:
-            continue
-        for c in pr.p["claims"]:
-            m = pr.metric(c["metric"])
-            if (c["support_level"] in ("confirmed", "exploratory") or c["candidate_id"] in (None, "as_hypothesized")
-                    or not clear(m) or c["metric"].lower() in pr.features):
-                continue
-            verb = "increase" if m["rel_delta"] > 0 else "decrease"
-            best = f" Best explanation: {_lower(c['candidate'])} ({SUPPORT.get(c['support_level'], 'Possible')})." if c["candidate"] else ""
-            asks.append(f"Why did {c['metric']} {verb}?{best}")
-        flat = [v["metric"] for v in pr.verdicts if v["role"] == "primary" and v["verdict"] == "undetermined" and pr.metric(v["metric"])]
-        if flat:
-            asks.append(f"The contract expected a change in {', '.join(flat)}. "
-                        f"{'They' if len(flat) > 1 else 'It'} did not change clearly at the level of the launch call. Why?")
-    return list(dict.fromkeys(asks))[:4]
-
-
 # ---------- sections ----------
 
-def summary(pairs, approvals, cfg_present):
-    several = len(pairs) > 1
-    lines = ["## Summary", ""]
-    qs = {pr.test: open_questions(pr) for pr in pairs}
-
-    def grade_text(pr):
-        a = approvals.get(pr.test) or (NOT_APPROVED if pr.grade["grade"] == "decision_grade" else None)
-        return GRADE[pr.grade["grade"]] + (f", {a}" if a else "")
-
-    if several:
-        lines += ["| Arm | Grade | Ready for triage | Launch call |", "|---|---|---|---|"]
-        for pr in pairs:
-            call = "None" if pr.blocked else (CALL.get(pr.p["decision"]["call"], pr.p["decision"]["call_text"])
-                                              if not (pr.missing_primaries() or pr.no_contract) else "Not made")
-            lines.append(f"| {pr.test} | {grade_text(pr)} | {triage_line(pr, qs[pr.test])} | {call} |")
-        lines.append("")
-    for pr in pairs:
-        if several:
-            lines += [f"### {pr.test}", ""]
-        if pr.blocked:
-            blocks = [c for c in pr.p["m0"] if c["status"] == "BLOCK"]
-            lines += [f"**Not readable.** {_sentence(c['reason'])}" for c in blocks[:2]]
-            lines += [""] + [f"{n}. {s}" for n, s in enumerate(todo(pr)[:3], 1)] + [""]
-            continue
-        if not several:
-            lines += [f"**Grade:** {grade_text(pr)}.", "", f"**Ready for triage:** {triage_line(pr, qs[pr.test])}", ""]
-        lines += [f"**Launch call:** {call_line(pr)}", ""]
-        if qs[pr.test]:
-            lines += ["Open questions:", ""] + [f"{n}. {q}" for n, q in enumerate(qs[pr.test][:4], 1)] + [""]
-        steps = todo(pr)
-        if steps:
-            lines += ["Before triage:", ""] + [f"{n}. {s}" for n, s in enumerate(steps[:5], 1)] + [""]
-    asks = triage_asks(pairs, cfg_present)
-    if asks:
-        lines += ["Triage will ask:", ""] + [f"{n}. {a}" for n, a in enumerate(asks, 1)] + [""]
-    return lines
+RESULT = {"better": "Meets the bar", "below_bar": "Below the bar", "worse": "Opposite direction",
+          "undetermined": "No clear change", "within": "Inside the limit", "no_harm_detected": "Inside the limit",
+          "harm_within_margin": "Worse, inside the limit", "breached": "Past the limit", "missing": "Not in the scorecard",
+          "no_interval": "No interval"}
+NO_THRESHOLD = {"better": "Better. No bar", "no_harm_detected": "No clear harm. No limit", "breached": "Worse. No limit"}
 
 
-def metrics_table(pr, cause_ref):
-    rows = []
+def result_text(pr, v):
+    m = pr.metric(v["metric"])
     level = pr.p["decision"]["settings"].get("levels", {}).get("primary")
-    for v in pr.verdicts:
-        m = pr.metric(v["metric"])
-        res = {"better": "Meets the bar", "below_bar": "Below the bar", "worse": "Opposite direction",
-               "undetermined": "No clear change", "within": "Inside the limit", "no_harm_detected": "Inside the limit",
-               "harm_within_margin": "Worse, inside the limit", "breached": "Past the limit", "missing": "Not in the scorecard",
-               "no_interval": "No interval"}.get(v["verdict"], v["verdict"])
-        if v.get("threshold") is None and v["verdict"] in ("better", "no_harm_detected", "breached"):
-            res = {"better": "Better. No bar", "no_harm_detected": "No clear harm. No limit", "breached": "Worse. No limit"}[v["verdict"]]
-        if v["verdict"] == "undetermined" and clear(m) and level and v["role"] == "primary":
-            res = f"No clear change at {100 * level:.2f}%"  # clear at 95%, but the call reads primaries at a wider level
-        rows.append((v["metric"], ROLE[v["role"]], change(m), res))
-    shown = {r[0].lower() for r in rows}
-    for f in pr.p.get("feature_metrics", []):
-        m = pr.metric(f)
-        if m and f.lower() not in shown:
-            rows.append((f, "Feature", change(m), "Changed as intended" if clear(m) else "No clear change"))
-            shown.add(f.lower())
-    for c in pr.p["claims"]:
-        m = pr.metric(c["metric"])
-        if c["metric"].lower() not in shown and clear(m):
-            rows.append((c["metric"], "Other", change(m), _sentence(moved(m)).rstrip(".")))
-            shown.add(c["metric"].lower())
-    claims = {c["metric"].lower(): c for c in pr.p["claims"]}
-    lines = ["| Metric | Role | Change | 95% CI | Result | Cause |", "|---|---|---|---|---|---|"]
-    for name, role, _, res in rows:
-        m = pr.metric(name)
-        c = claims.get(name.lower())
-        cause = cause_ref.get(c["candidate_id"], "") if c and c["candidate_id"] else (
-            "None in the library" if pr.matters(name) and role != "Feature" else "")
-        value = pct(m["rel_delta"]) if m and m.get("rel_delta") is not None else "Not available"
-        interval = ci(*m["rel_ci"]) if m and m.get("rel_ci") else ""
-        lines.append(f"| {name} | {role} | {value} | {interval} | {res} | {cause} |")
-    return lines
+    if v.get("threshold") is None and v["verdict"] in NO_THRESHOLD:
+        return NO_THRESHOLD[v["verdict"]]
+    if v["verdict"] == "undetermined" and clear(m) and level and v["role"] == "primary":
+        return f"No clear change at {100 * level:.2f}%"  # clear at 95%, but the call reads primaries at a wider level
+    return RESULT.get(v["verdict"], v["verdict"])
+
+
+def conclusion(pr):
+    """The result label of the plan-and-results template, from the registered verdicts only."""
+    if pr.blocked:
+        return "Not readable"
+    prim = [v for v in pr.verdicts if v["role"] == "primary"]
+    if pr.no_contract or not prim or len(pr.missing_primaries()) == len(prim):
+        return "Not known"
+    good = any(v["verdict"] in ("better", "below_bar") for v in prim)
+    bad = (any(v["verdict"] == "worse" for v in prim)
+           or any(v["verdict"] == "breached" for v in pr.verdicts if v["role"] == "guardrail"))
+    return "Mixed" if good and bad else "Positive" if good else "Negative" if bad else "Inconclusive"
+
+
+def result_line(pr):
+    """'Positive. 1 of 4 primaries improved clearly. 1 guardrail is worse.'"""
+    label = conclusion(pr)
+    if label == "Not readable":
+        block = next((c for c in pr.p["m0"] if c["status"] == "BLOCK"), None)
+        return f"Not readable. {_sentence(block['reason'])}" if block else "Not readable."
+    if label == "Not known":
+        return "Not known. The contract names no primary metric."
+    prim = [v for v in pr.verdicts if v["role"] == "primary"]
+    up = sum(v["verdict"] in ("better", "below_bar") for v in prim)
+    down = sum(v["verdict"] == "worse" for v in prim)
+    harm = sum(v["verdict"] == "breached" for v in pr.verdicts if v["role"] == "guardrail")
+    parts = [f"{label}.", f"{up} of {len(prim)} primar{'y' if len(prim) == 1 else 'ies'} improved clearly."]
+    if down:
+        parts.append(f"{down} changed in the opposite direction.")
+    if harm:
+        parts.append(f"{harm} guardrail{'s are' if harm > 1 else ' is'} worse.")
+    return " ".join(parts)
+
+
+def grade_line(pr, approvals):
+    a = approvals.get(pr.test) or (NOT_APPROVED if pr.grade["grade"] == "decision_grade" else None)
+    text = GRADE[pr.grade["grade"]] + (f", {a}" if a else "") + "."
+    if pr.grade["grade"] == "directional_only":
+        reasons = pr.grade.get("reasons") or []
+        dur = next((c for c in pr.p["m0"] if c["id"] == "duration"), None)
+        if reasons:
+            text += f" {_sentence(reasons[0])}"
+        elif dur and dur["details"].get("end") and str(dur["details"].get("as_of")) < str(dur["details"]["end"]):
+            text += f" The test has not ended. Its planned end is {dur['details']['end']}."
+    return text
+
+
+def summary(prs, approvals):
+    lines = ["## Summary", ""]
+    if len(prs) == 1:
+        pr = prs[0]
+        lines += [f"**Result:** {result_line(pr)}", ""]
+        if not pr.blocked:
+            lines += [f"**Launch call:** {call_line(pr)}", "", f"**Grade:** {grade_line(pr, approvals)}", ""]
+        return lines + [f"**Ready for triage:** {triage_line(pr, todo(pr))}", ""]
+    lines += ["| Arm | Result | Launch call | Grade | Ready for triage |", "|---|---|---|---|---|"]
+    for pr in prs:
+        call = "None" if pr.blocked else CALL.get(pr.p["decision"]["call"], pr.p["decision"]["call_text"])
+        call = "Not made" if not pr.blocked and (pr.missing_primaries() or pr.no_contract) else call
+        lines.append(f"| {pr.test} | {conclusion(pr)} | {call} | {grade_line(pr, approvals).split('.')[0]} | "
+                     f"{triage_line(pr, todo(pr))} |")
+    lines.append("")
+    for pr in prs:
+        lines.append(f"- **{pr.test}:** {result_line(pr) if pr.blocked else call_line(pr)}")
+    return lines + [""]
+
+
+def plan(prs, control):
+    pr = prs[0]
+    hyp = pr.p.get("hypothesis")
+    limit = lambda v, word: f"{v['metric']} ({word} {_limit(v)})" if _limit(v) else f"{v['metric']} (no {word})"  # noqa: E731
+    prim = [limit(v, "bar") for v in pr.verdicts if v["role"] == "primary"]
+    guard = [limit(v, "limit") for v in pr.verdicts if v["role"] == "guardrail"]
+    dur = next((c for c in pr.p["m0"] if c["id"] == "duration"), None) or {"details": {}}
+    lines = ["## Plan", "",
+             f'- **Hypothesis:** "{hyp.rstrip(".")}".' if hyp else "- **Hypothesis:** the contract gives none.",
+             f"- **Primary metrics:** {'; '.join(prim)}." if prim else "- **Primary metrics:** none. There is no contract.",
+             f"- **Guardrails:** {'; '.join(guard)}." if guard else "- **Guardrails:** none in the contract.",
+             f"- **Arms:** {', '.join(p.test for p in prs)} against {control}."]
+    if dur["details"].get("as_of"):
+        end = dur["details"].get("end")
+        lines.append(f"- **Dates:** scorecard snapshot {dur['details']['as_of']}" + (f", planned end {end}." if end else "."))
+    return lines + [""]
+
+
+def cell(m):
+    """'-1.06% (-2.44% to +0.32%)': the table header names the 95% CI."""
+    if not m or m.get("rel_delta") is None:
+        return "Not available"
+    return f"{pct(m['rel_delta'])} ({ci(*m['rel_ci'])})" if m.get("rel_ci") else f"{pct(m['rel_delta'])} (no interval)"
+
+
+def results(prs):
+    several = len(prs) > 1
+    lines = ["## Results", ""]
+    readable = [pr for pr in prs if not pr.blocked]
+    if not readable:
+        return lines + ["Not readable until the data problem is fixed.", ""]
+    rows, more = [], 0
+    for pr in readable:
+        for v in pr.verdicts:
+            rows.append((v["metric"], ROLE[v["role"]], pr.test, cell(pr.metric(v["metric"])), result_text(pr, v)))
+        shown = {v["metric"].lower() for v in pr.verdicts}
+        for f in pr.p.get("feature_metrics", []):
+            m = pr.metric(f)
+            if m and f.lower() not in shown:
+                rows.append((f, "Feature", pr.test, cell(m), "Changed as intended" if clear(m) else "No clear change"))
+                shown.add(f.lower())
+        others = {}
+        for c in pr.p["claims"]:
+            if c["metric"].lower() not in shown and pr.matters(c["metric"]):
+                others.setdefault(c["metric"].lower(), c["metric"])
+        others = sorted(others.values(), key=lambda name: -abs(pr.metric(name)["rel_delta"]))
+        rows += [(name, "Other", pr.test, cell(pr.metric(name)), _sentence(moved(pr.metric(name))).rstrip(".")) for name in others[:3]]
+        more += max(0, len(others) - 3)
+    order = {}
+    for r in rows:
+        order.setdefault(r[0].lower(), len(order))
+    rows.sort(key=lambda r: order[r[0].lower()])  # one metric's arms together
+    if several:
+        lines += ["| Metric | Role | Arm | Change (95% CI) | Result |", "|---|---|---|---|---|"]
+        lines += [f"| {n} | {role} | {arm} | {chg} | {res} |" for n, role, arm, chg, res in rows]
+    else:
+        lines += ["| Metric | Role | Change (95% CI) | Result |", "|---|---|---|---|"]
+        lines += [f"| {n} | {role} | {chg} | {res} |" for n, role, _, chg, res in rows]
+    lines.append("")
+    if more:
+        lines += [f"Kangaroo found {more} more clear change{'s' if more > 1 else ''}. "
+                  "Run `kangaroo why METRIC` to see one of them.", ""]
+    for pr in prs:
+        if pr.blocked:
+            lines += [f"The {pr.test} arm is not readable until the data problem is fixed.", ""]
+    note = interval_note(prs)
+    return lines + ([note, ""] if note else [])
 
 
 def _cut_evidence(pr, a, refs):
@@ -395,45 +422,125 @@ def _cut_evidence(pr, a, refs):
     return f"{role} [S{ref}]: {a.get('produces') or a['exact_next_task']} {change(e)}. {verdict}{caveat}"
 
 
-def causes_table(pr, refs):
-    """(lines, {cause id: 'C1 (Confirmed)'})."""
-    rows, ref = [], {}
-    for n, (cid, claims) in enumerate(pr.causes(), 1):
-        c = claims[0]
-        support = SUPPORT.get(c["support_level"], "Possible")
-        ref[cid] = f"C{n} ({support})"
-        ran = [a for a in pr.p["actions"] if a["status"] == "ran" and a.get("target_pattern") == cid and a.get("statement")]
-        if cid == "as_hypothesized":
-            shown = [x for x in claims if pr.metric(x["metric"])][:2]
-            evidence = " ".join(_sentence(f"{x['metric']} {said(pr.metric(x['metric']))}")
-                                for x in shown) + " Only metrics changed. No cut tested the hypothesis."
-            hyp = pr.p.get("hypothesis")
-            name = f'The hypothesis in the contract: "{hyp.rstrip(".")}"' if hyp else "The hypothesis in the contract"
-        elif ran:
-            evidence = " ".join(_cut_evidence(pr, a, refs) for a in ran)
-            name = c["candidate"]
-        else:
-            together = "; ".join(f"{x['metric']} {pct(pr.metric(x['metric'])['rel_delta'])}" for x in claims[:3]
-                                 if pr.metric(x["metric"]) and pr.metric(x["metric"]).get("rel_delta") is not None)
-            gap = any(a["status"] == "access gap" and a.get("target_pattern") == cid for a in pr.p["actions"])
-            evidence = (f"Metrics changed together: {together}. " if together else "") + (
-                "No cut ran: kangaroo cannot read the query table." if gap else "No cut tested it.")
-            if c["support_level"] == "confirmed" and c["statement_ids"]:
-                evidence = "The scorecard values agree."
-            name = c["candidate"]
-        pending = [w for w in c.get("awaiting") or [] if "query sets" not in w]
-        if c["support_level"] == "consistent" and pending:
-            evidence += f" Not confirmed until this cut agrees: {pending[0]}."
-        rows.append(f"| C{n} | {_sentence(name).rstrip('.')} | {support} | {evidence} |")
+def cause_row(pr, cid, claims, refs):
+    """(name, support, evidence) for one candidate cause."""
+    c = claims[0]
+    support = SUPPORT.get(c["support_level"], "Possible")
+    ran = [a for a in pr.p["actions"] if a["status"] == "ran" and a.get("target_pattern") == cid and a.get("statement")]
+    if cid == "as_hypothesized":
+        shown = [x for x in claims if pr.metric(x["metric"])][:2]
+        evidence = " ".join(_sentence(f"{x['metric']} {said(pr.metric(x['metric']))}")
+                            for x in shown) + " Only metrics changed. No cut tested the hypothesis."
+        hyp = pr.p.get("hypothesis")
+        name = f'The hypothesis in the contract: "{hyp.rstrip(".")}"' if hyp else "The hypothesis in the contract"
+    elif ran:
+        evidence = " ".join(_cut_evidence(pr, a, refs) for a in ran)
+        name = c["candidate"]
+    else:
+        together = "; ".join(f"{x['metric']} {pct(pr.metric(x['metric'])['rel_delta'])}" for x in claims[:3]
+                             if pr.metric(x["metric"]) and pr.metric(x["metric"]).get("rel_delta") is not None)
+        gap = any(a["status"] == "access gap" and a.get("target_pattern") == cid for a in pr.p["actions"])
+        evidence = (f"Metrics changed together: {together}. " if together else "") + (
+            "No cut ran: kangaroo cannot read the query table." if gap else "No cut tested it.")
+        if c["support_level"] == "confirmed" and c["statement_ids"]:
+            evidence = "The scorecard values agree."
+        name = c["candidate"]
+    pending = [w for w in c.get("awaiting") or [] if "query sets" not in w]
+    if c["support_level"] == "consistent" and pending:
+        evidence += f" Not confirmed until this cut agrees: {pending[0]}."
+    return _sentence(name).rstrip("."), support, evidence
+
+
+def ruled_out(pr, refs):
+    out = []
     for inst in pr.p["explained"].get("ruled_out") or []:
         ran = [a for a in pr.p["actions"] if a["status"] == "ran" and a.get("target_pattern") == inst["id"]
                and a.get("outcome") == "refutes" and a.get("statement")]
         if ran:
-            rows.append(f"| - | {_sentence(inst['name']).rstrip('.')} | Ruled out | "
-                        f"{' '.join(_cut_evidence(pr, a, refs) for a in ran)} |")
+            out.append((_sentence(inst["name"]).rstrip("."), " ".join(_cut_evidence(pr, a, refs) for a in ran)))
+    return out
+
+
+def why(prs, refs, confirmed):
+    lines = ["## Why it moved", ""]
+    readable = [pr for pr in prs if not pr.blocked]
+    if not readable:
+        return lines + ["Not examined: the data problem comes first.", ""]
+    for pr in readable:
+        if len(prs) > 1:
+            lines += [f"### {pr.test}", ""]
+        causes, items = pr.causes(), []
+        for cid, claims in causes[:3]:
+            name, support, evidence = cause_row(pr, cid, claims, refs)
+            items.append(f"- **{support}:** {name}. {evidence}")
+        if len(causes) > 3:
+            items.append(f"- {len(causes) - 3} more causes are in the appendix.")
+        items += [f"- **Ruled out:** {name}. {evidence}" for name, evidence in ruled_out(pr, refs)]
+        orphans = pr.orphans()
+        if orphans:
+            listed = "; ".join(f"{c['metric']} ({pct(pr.metric(c['metric'])['rel_delta'])})" for c in orphans)
+            items.append(f"- **No cause found:** no cause in the library explains {len(orphans)} clear "
+                         f"change{'s' if len(orphans) > 1 else ''}: {listed}.")
+        lines += (items or ["- No metric changed clearly."]) + [""]
+    for c in confirmed:
+        lines += [f"Similar past experiment: {c['name']} ({c.get('layer')}). Cause: {_sentence(c['cause'])} "
+                  f"Lesson: {_sentence(c['lesson'])}", ""]
+    return lines
+
+
+def power_text(c):
+    weak = c["details"]["weak"]
+    first = weak[0]
+    more = (" 1 more primary is similar." if len(weak) == 2 else f" {len(weak) - 1} more primaries are similar.") if len(weak) > 1 else ""
+    return (f"{first['metric']} can detect a change of {100 * first['mde']:.2f}% or more, but its bar is "
+            f"{100 * first['bar']:.2f}%.{more}")
+
+
+def quality(prs):
+    lines, seen = ["## Data quality", ""], {}
+    for pr in prs:
+        for c in pr.p["m0"]:
+            if not c["affects_grade"] or c["status"] == "PASS" or (pr.blocked and c["status"] != "BLOCK"):
+                continue
+            if c["status"] == "WARN" and c["id"] == "M0-5" and not any(w.lower().startswith("power") for w in pr.warns()):
+                continue  # every primary moved clearly, so low power does not matter
+            text = power_text(c) if c["id"] == "M0-5" and c["status"] == "WARN" and c["details"].get("weak") else _sentence(c["reason"])
+            seen.setdefault((c["name"], c["status"], text), []).append(pr.test)
+    for pr in prs:
+        durability = next((q for q in pr.p["explained"]["standard"] if q["question"] == "Will it last?"), None)
+        if not pr.blocked and durability and durability["ok"] is False and "fading" not in durability["answer"]:
+            seen.setdefault(("durability", "UNKNOWN", "Kangaroo has no effect series by day since first exposure."), []).append(pr.test)
+    checks = [c for c in prs[0].p["m0"] if c["affects_grade"]]
+    if not seen:
+        return lines + [f"All {len(checks)} checks pass.", ""]
+    for (name, status, text), arms in seen.items():
+        arm = "" if len(prs) == 1 or len(arms) == len(prs) else f" Arms: {', '.join(arms)}."
+        lines.append(f"- **{name[:1].upper() + name[1:]}:** {CHECK.get(status, status)}. {text}{arm}")
+    failing = {name for name, _, _ in seen}
+    passed = sum(1 for c in checks if c["name"] not in failing)
+    return lines + ["", f"{passed} other check{'s pass' if passed != 1 else ' passes'}. "
+                        "The appendix gives each check with its evidence.", ""]
+
+
+def next_steps(prs):
+    steps = [s for pr in prs for s in todo(pr)]
+    changed = sorted({d for pr in prs for d in (pr.p["m0_details"].get("diffs") or [])})
+    if changed:
+        steps.append(f"Confirm that the config change to {changed[0]} is the full change." if len(changed) == 1 else
+                     f"Confirm that the config changes to {', '.join(changed[:-1])} and {changed[-1]} are the full change.")
+    steps = list(dict.fromkeys(steps))
+    return ["## Next steps", ""] + ([f"{n}. {s}" for n, s in enumerate(steps, 1)] or ["None."]) + [""]
+
+
+def causes_table(pr, refs):
+    rows = []
+    for n, (cid, claims) in enumerate(pr.causes(), 1):
+        name, support, evidence = cause_row(pr, cid, claims, refs)
+        rows.append(f"| C{n} | {name} | {support} | {evidence} |")
+    rows += [f"| - | {name} | Ruled out | {evidence} |" for name, evidence in ruled_out(pr, refs)]
     if not rows:
-        return ["No cause to explain: no metric changed clearly."], ref
-    return ["| # | Cause | Support | Evidence |", "|---|---|---|---|"] + rows, ref
+        return ["No cause to explain: no metric changed clearly."]
+    return ["| # | Cause | Support | Evidence |", "|---|---|---|---|"] + rows
 
 
 def checks_table(pairs):
@@ -468,34 +575,32 @@ def interval_note(pairs):
     return None
 
 
+def appendix(prs, refs, confirmed, drafts):
+    """What the body leaves out: every data check, the causes past the first 3, and the uncited drafts."""
+    lines = ["## Appendix", "", "### Data checks", ""] + checks_table(prs) + [""]
+    for pr in prs:
+        if not pr.blocked and len(pr.causes()) > 3:
+            lines += [f"### Causes{f': {pr.test}' if len(prs) > 1 else ''}", ""] + causes_table(pr, refs) + [""]
+    if all(pr.blocked for pr in prs):
+        return lines
+    lines += ["### Similar experiments", ""]
+    lines.append("- Confirmed: see Why it moved." if confirmed else "- No confirmed similar experiment.")
+    if drafts:
+        lines.append("- Drafts that no person has reviewed, so not cited: " + ", ".join(d["name"] for d in drafts) + ".")
+    return lines + [""]
+
+
 def render(display, control, pairs, confirmed, drafts, provenance, approvals, cfg_present, library=None):
     prs = [Pair(p, library) for p in pairs]
-    as_of = next((c["details"].get("as_of") for pr in prs for c in pr.p["m0"] if c["id"] == "duration" and c["details"].get("as_of")), None)
-    lines = [f"# {display}", "", f"{len(prs)} arm{'s' if len(prs) > 1 else ''} against {control}."
-             + (f" Scorecard snapshot: {as_of}." if as_of else ""), ""]
-    lines += summary(prs, approvals, cfg_present)
     refs = {}
-    for pr in prs:
-        tag = f": {pr.test}" if len(prs) > 1 else ""
-        if pr.blocked:
-            lines += [f"## Metrics{tag}", "", "Not readable until the data problem is fixed.", ""]
-            continue
-        causes, ref = causes_table(pr, refs)
-        lines += [f"## Metrics{tag}", ""] + metrics_table(pr, ref) + [""]
-        lines += [f"## Causes{tag}", ""] + causes + [""]
-    note = interval_note(prs)
-    if note:
-        lines += [note, ""]
-    lines += ["## Data checks", ""] + checks_table(prs) + [""]
-    lines += ["## Similar experiments", ""]
-    if all(pr.blocked for pr in prs):
-        lines += ["Not compared: the data problem comes first.", ""]
-    else:
-        lines += [f"- {c['name']} ({c.get('layer')}). Cause: {_sentence(c['cause'])} Lesson: {_sentence(c['lesson'])}"
-                  for c in confirmed] or ["- No confirmed similar experiment."]
-        if drafts:
-            lines.append("- Drafts that no person has reviewed, so not cited: " + ", ".join(d["name"] for d in drafts) + ".")
-        lines.append("")
+    lines = [f"# {display}", ""]
+    lines += summary(prs, approvals)
+    lines += plan(prs, control)
+    lines += results(prs)
+    lines += why(prs, refs, confirmed)
+    lines += quality(prs)
+    lines += next_steps(prs)
+    lines += appendix(prs, refs, confirmed, drafts)
     lines += ["---", "",
               "Support: Confirmed means that a cut and its control cut agree. Consistent means that one cut agrees, "
               "but the control cut does not confirm it. Likely means that metrics changed together, and no cut tested it.", ""]
@@ -523,10 +628,12 @@ def team_names(pairs):
 
 
 def summary_text(text):
-    """The title and the Summary section: what a chat reply gives."""
-    start = text.find("## Summary")
-    if start < 0:
-        return text
-    end = re.search(r"^## ", text[start + 3:], re.M)
-    body = text[start:start + 3 + end.start()] if end else text[start:]
-    return text[:text.find("\n")].strip() + "\n\n" + body.strip()
+    """What a chat reply gives: the title, the Summary and the Next steps."""
+    parts = [text[:text.find("\n")].strip()]
+    for head in ("## Summary", "## Next steps"):
+        start = text.find(head)
+        if start < 0:
+            continue
+        end = re.search(r"^## ", text[start + 3:], re.M)
+        parts.append((text[start:start + 3 + end.start()] if end else text[start:]).strip())
+    return "\n\n".join(parts) if len(parts) > 1 else text
