@@ -19,6 +19,7 @@ p { margin: 8px 0; } ul, ol { margin: 6px 0 10px; padding-left: 24px; } li { mar
 table { border-collapse: collapse; margin: 10px 0; font-size: 14px; } td { vertical-align: top; } th, td { border: 1px solid var(--line); padding: 5px 10px; }
 th { background: var(--soft); text-align: left; }
 code { background: var(--soft); padding: 1px 4px; border-radius: 4px; font-size: 13px; }
+figure.chart { margin: 12px 0 16px; } figure.chart svg { max-width: 100%; height: auto; }
 hr { border: 0; border-top: 1px solid var(--line); margin: 28px 0 12px; }
 .prov { color: var(--muted); font-size: 12px; }
 .go-yes { color: var(--ok); } .go-dir { color: var(--warn); } .go-no { color: var(--bad); }
@@ -41,7 +42,7 @@ def _go_class(text):
     return " go-yes" if after.startswith("Yes.") else " go-dir"
 
 
-def to_html(markdown, title):
+def to_html(markdown, title, figures=None):
     lines = markdown.splitlines()
     out, i, in_minute = [], 0, False
     while i < len(lines):
@@ -61,6 +62,11 @@ def to_html(markdown, title):
                 out.append("</section>")
                 in_minute = False
             out.append(f"<h2>{_inline(line[3:])}</h2>")
+        elif re.match(r"^!\[[^\]]*\]\([^)]+\)$", line.strip()):
+            alt, src = re.match(r"^!\[([^\]]*)\]\(([^)]+)\)$", line.strip()).groups()
+            svg = (figures or {}).get(src.rsplit("/", 1)[-1])
+            out.append(f'<figure class="chart">{svg}</figure>' if svg else
+                       f'<figure class="chart"><img src="{html.escape(src)}" alt="{html.escape(alt)}"></figure>')
         elif line.strip() == "---":
             out.append("<hr>")
         elif line.startswith("|"):

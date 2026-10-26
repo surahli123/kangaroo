@@ -62,7 +62,7 @@ def units(markdown):
     return out
 
 
-def check(markdown, names=(), skip_prefixes=("Provenance:", "Sources:")):
+def check(markdown, names=(), skip_prefixes=("Provenance:", "Sources:", "![")):
     """A list of (rule, text) for each break of the tested rules."""
     found = []
     for unit in units(markdown):

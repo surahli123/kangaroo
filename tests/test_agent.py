@@ -15,6 +15,7 @@ import csv
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -205,11 +206,14 @@ class Flights(unittest.TestCase):
         self.assertEqual(len(method.unsupported(confirmed, caveated, library)), len(confirmed))
 
     def test_a_run_leaves_its_files_and_keeps_rows_out_of_the_trace(self):
+        self.assertTrue(any("](charts/results.svg)" in r["readout"] for r, _ in self.runs.values()))  # reports carry charts
         for name, (result, out) in self.runs.items():
             with self.subTest(flight=name):
                 for f in ("readout.md", "readout.html", "trace.json", "review.json", "card_draft.json", "case/scorecard.json",
                           "case/series.json", "case/contract.json", "case/queries.json", "case/meta.json"):
                     self.assertTrue(os.path.exists(os.path.join(out, f)), f)
+                for chart in re.findall(r"^!\[[^\]]*\]\(([^)]+)\)$", result["readout"], re.M):  # every chart the report shows exists
+                    self.assertTrue(os.path.exists(os.path.join(out, chart)), chart)
                 trace = load(os.path.join(out, "trace.json"))
                 self.assertNotIn("rows", set(keys_in(trace)))  # only statement IDs, counts and hashes leave a run
                 self.assertEqual(trace["counts"], result["counts"])

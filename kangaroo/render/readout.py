@@ -21,6 +21,8 @@ Internal state names (packet, seal, receipt, check IDs) never appear.
 
 import re
 
+from kangaroo.render import charts
+
 GRADE = {"decision_grade": "Decision grade", "directional_only": "Directional only", "not_permitted": "Not readable"}
 SUPPORT = {"confirmed": "Confirmed", "consistent": "Consistent", "inferred": "Likely", "exploratory": "Exploratory"}
 ORDER = {"confirmed": 0, "consistent": 1, "inferred": 2, "exploratory": 3}
@@ -590,14 +592,107 @@ def appendix(prs, refs, confirmed, drafts):
     return lines + [""]
 
 
-def render(display, control, pairs, confirmed, drafts, provenance, approvals, cfg_present, library=None):
+def _sign(direction):
+    return 1 if direction in ("increase", "higher", "up") else -1 if direction in ("decrease", "lower", "down") else 0
+
+
+def _results_chart(prs):
+    several, groups = len(prs) > 1, []
+    readable = [(i, pr) for i, pr in enumerate(prs) if not pr.blocked]
+    for role, head in (("primary", "Primary metrics"), ("guardrail", "Guardrails")):
+        names = list(dict.fromkeys(v["metric"] for _, pr in readable for v in pr.verdicts if v["role"] == role))
+        flat = []
+        for name in names:
+            rows = []
+            for i, pr in readable:
+                v = next((x for x in pr.verdicts if x["metric"] == name and x["role"] == role), None)
+                m = pr.metric(name)
+                if not v or not m or not m.get("rel_ci") or m.get("rel_delta") is None:
+                    continue
+                mark = None
+                if v.get("threshold") is not None and v.get("unit", "relative") == "relative" and _sign(v.get("direction")):
+                    mark = (1 if role == "primary" else -1) * _sign(v.get("direction")) * v["threshold"]
+                arm = f" ({pr.test})" if several else ""
+                rows.append({"label": name, "sub": pr.test if several else None, "point": m["rel_delta"], "lo": m["rel_ci"][0],
+                             "hi": m["rel_ci"][1], "cls": f"kg-s{i}" if several else "kg-s0", "mark": mark,
+                             "tip": f"{name}{arm}: {pct(m['rel_delta'])} (95% CI {ci(*m['rel_ci'])}). {result_text(pr, v)}."})
+            if several and rows:
+                groups.append((f"{ROLE[role]}: {name}", rows))
+            flat += rows
+        if not several and flat:
+            groups.append((head, flat))
+    legend = [(f"kg-s{i}", pr.test) for i, pr in readable] if several else None
+    return charts.interval_chart("kg-results", "Change against control, with the 95% CI", groups, legend)
+
+
+def _trend_chart(prs, series):
+    readable = [(i, pr) for i, pr in enumerate(prs) if not pr.blocked]
+    names = {str(r["metric"]).lower() for r in series or []}
+    lead = next((v["metric"] for _, pr in readable for v in pr.verdicts
+                 if v["role"] == "primary" and v["metric"].lower() in names), None)
+    if not lead:
+        return None
+    lines = []
+    for i, pr in readable:
+        pts = {str(r["snapshot"])[:10]: r["rel_delta"] for r in series
+               if str(r["metric"]).lower() == lead.lower() and r["test_group"] == pr.test and r.get("rel_delta") is not None}
+        if pts:
+            lines.append({"name": pr.test, "cls": f"kg-s{i}" if len(prs) > 1 else "kg-s0", "points": sorted(pts.items())})
+    return charts.line_chart("kg-trend", f"{lead}: change in each daily scorecard snapshot", lines) if lines else None
+
+
+def _cuts_chart(prs):
+    several, groups = len(prs) > 1, []
+    for pr in prs:
+        if pr.blocked:
+            continue
+        by = {}
+        for a in pr.p["actions"]:
+            if a["status"] == "ran" and a.get("statement") and a.get("target_pattern"):
+                by.setdefault(a["target_pattern"], []).append(a)
+        for cid, acts in by.items():
+            rows = []
+            for a in sorted(acts, key=lambda a: a.get("role") == "control"):
+                e = pr.evidence.get((a.get("produces") or "").lower())
+                if not e or not e.get("rel_ci") or e.get("rel_delta") is None:
+                    continue
+                control = a.get("role") == "control"
+                what = a.get("produces") or a["exact_next_task"]
+                rows.append({"label": ("Control: " if control else "") + what, "point": e["rel_delta"], "lo": e["rel_ci"][0],
+                             "hi": e["rel_ci"][1], "cls": "kg-ctx" if control else "kg-s0", "mark": None,
+                             "tip": f"{'Control cut' if control else 'Cut'}: {what}: {pct(e['rel_delta'])} (95% CI {ci(*e['rel_ci'])})."})
+            if rows:
+                name = pr.patterns.get(cid, {}).get("name") or cid
+                groups.append(((f"{pr.test}: " if several else "") + _sentence(name).rstrip("."), rows))
+    return charts.interval_chart("kg-cuts", "Each cut and its control cut, with the 95% CI", groups,
+                                 [("kg-s0", "Cut"), ("kg-ctx", "Control cut")])
+
+
+def figures(pairs, library=None, series=None):
+    """{file name: SVG text} for the charts that have data. The tables in the report give the same values."""
     prs = [Pair(p, library) for p in pairs]
+    out = {"results.svg": _results_chart(prs), "trend.svg": _trend_chart(prs, series), "cuts.svg": _cuts_chart(prs)}
+    return {k: v for k, v in out.items() if v}
+
+
+def render(display, control, pairs, confirmed, drafts, provenance, approvals, cfg_present, library=None, series=None):
+    prs = [Pair(p, library) for p in pairs]
+    figs = figures(pairs, library, series)
     refs = {}
     lines = [f"# {display}", ""]
     lines += summary(prs, approvals)
     lines += plan(prs, control)
-    lines += results(prs)
-    lines += why(prs, refs, confirmed)
+    res = results(prs)
+    if "results.svg" in figs:
+        res[2:2] = ["![Change and 95% CI of each contract metric](charts/results.svg)", ""]
+    if "trend.svg" in figs:
+        res += ["![Change of the lead primary in each daily snapshot](charts/trend.svg)", ""]
+    lines += res
+    reasons = why(prs, refs, confirmed)
+    if "cuts.svg" in figs:
+        at = next((i for i, x in enumerate(reasons) if x.startswith("Similar past experiment")), len(reasons))
+        reasons[at:at] = ["![Each cut and its control cut](charts/cuts.svg)", ""]
+    lines += reasons
     lines += quality(prs)
     lines += next_steps(prs)
     lines += appendix(prs, refs, confirmed, drafts)

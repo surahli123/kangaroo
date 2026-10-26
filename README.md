@@ -24,6 +24,8 @@ Each report follows the order of a standard experiment readout (Optimizely's exp
 
 The chat reply gives the Summary and the Next steps.
 
+The report has three charts, as SVG files in `charts/` and inside `readout.html`: each contract metric with its 95% CI against its bar or limit, the lead primary in each daily snapshot, and each cut beside its control cut. The tables give the same values. The charts use only the Python standard library.
+
 `render/ste.py` tests the writing rules that a script can test. The test suite runs it on every report. It does not test the approved dictionary, because that dictionary is licensed.
 
 ## See it work

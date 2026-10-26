@@ -141,15 +141,23 @@ def run(experiment, overlay, warehouse, configs, out_dir, knowledge_dir=None, ca
                   f"{(cfg or {}).get('id') or 'not fetched'}; knowledge version {version[:12]}; code and settings version "
                   f"{code_version[:12]}; run {run_id}." + (" Read as approved aliases: " + "; ".join(f"'{a}' as '{b}'" for a, b in read_as) + "."
                                             if read_as else ""))
-    text = rd.render(display, sc["control_group"], pairs, confirmed, drafts, provenance, {}, cfg is not None, library)
+    percent = "rel_delta" in (cols.get("_percent_fields") or [])
+    daily = [{**r, "rel_delta": (r["rel_delta"] / 100 if percent else r["rel_delta"]) if r.get("rel_delta") is not None else None}
+             for r in series["rows"]]
+    text = rd.render(display, sc["control_group"], pairs, confirmed, drafts, provenance, {}, cfg is not None, library, daily)
     sha = readout_sha(text)
     approvals = {p["test"]: approval_status(out_dir, p["grade"], text) for p in pairs}
     if any(approvals.values()):
-        text = rd.render(display, sc["control_group"], pairs, confirmed, drafts, provenance, approvals, cfg is not None, library)
+        text = rd.render(display, sc["control_group"], pairs, confirmed, drafts, provenance, approvals, cfg is not None, library, daily)
+    figs = rd.figures(pairs, library, daily)
+    os.makedirs(os.path.join(out_dir, "charts"), exist_ok=True)
+    for fname, svg in figs.items():
+        with open(os.path.join(out_dir, "charts", fname), "w", encoding="utf-8") as handle:
+            handle.write(svg)
     with open(os.path.join(out_dir, "readout.md"), "w", encoding="utf-8") as handle:
         handle.write(text)
     with open(os.path.join(out_dir, "readout.html"), "w", encoding="utf-8") as handle:
-        handle.write(to_html(text, f"{display}: experiment report"))
+        handle.write(to_html(text, f"{display}: experiment report", figs))
 
     claims = [c for p in pairs for c in p["claims"]]
     counts = {"pairs": len(pairs), "claims": len(claims), "unsupported": sum(len(method.unsupported(p["claims"], p["actions"], library)) for p in pairs),
